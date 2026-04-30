@@ -52,20 +52,40 @@ const KIND_EXTENSIONS: Record<FileKind, readonly string[]> = {
 	python: [".py"],
 	go: [".go"],
 	rust: [".rs"],
+	// From llvm-project/clang/lib/Driver/Types.cpp clang::driver::types::lookupTypeForExtension:
 	cxx: [
+		// C
 		".c",
+		".h",
+		// C++
+		".c++",
 		".cc",
+		".cp",
 		".cpp",
 		".cxx",
-		".h",
 		".hh",
 		".hpp",
 		".hxx",
-		".ixx",
-		".ipp",
+		// C++ include files
 		".inl",
+		".ipp",
 		".tpp",
 		".txx",
+		// C++20 module interface files
+		".c++m",
+		".cppm",
+		".cxxm",
+		".ixx",
+		// CUDA
+		".cu",
+		// HIP
+		".hip",
+		// Objective-C
+		".m",
+		".mm",
+		// OpenCL
+		".cl",
+		".clcpp",
 	],
 	cmake: [".cmake"],
 	shell: [".sh", ".bash", ".zsh", ".fish"],
