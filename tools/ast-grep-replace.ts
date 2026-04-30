@@ -31,10 +31,10 @@ export function createAstGrepReplaceTool(astGrepClient: AstGrepClient) {
 			rewrite: Type.String({
 				description: "Replacement using meta-variables from pattern",
 			}),
-			lang: Type.Union(
-				LANGUAGES.map((l: (typeof LANGUAGES)[number]) => Type.Literal(l)),
-				{ description: "Target language" },
-			),
+			lang: Type.String({
+				enum: [...LANGUAGES] as string[],
+				description: "Target language",
+			}),
 			paths: Type.Optional(
 				Type.Array(Type.String(), { description: "Specific files/folders" }),
 			),
@@ -62,13 +62,18 @@ export function createAstGrepReplaceTool(astGrepClient: AstGrepClient) {
 				};
 			}
 
-			const { pattern, rewrite, lang, paths, apply } = params as {
+			const { pattern, rewrite, paths, apply } = params as {
 				pattern: string;
 				rewrite: string;
 				lang: string;
 				paths?: string[];
 				apply?: boolean;
 			};
+			// Strip surrounding quotes if the LLM over-quoted the value (e.g. '"typescript"')
+			const lang = ((params as { lang: string }).lang ?? "").replace(
+				/^"|"$/g,
+				"",
+			);
 			const searchPaths = paths?.length ? paths : [ctx.cwd || "."];
 			const result = await astGrepClient.replace(
 				pattern,

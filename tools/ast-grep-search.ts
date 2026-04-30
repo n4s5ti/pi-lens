@@ -62,10 +62,10 @@ export function createAstGrepSearchTool(astGrepClient: AstGrepClient) {
 			pattern: Type.String({
 				description: "AST pattern (use function/class/call context, not text)",
 			}),
-			lang: Type.Union(
-				LANGUAGES.map((l: (typeof LANGUAGES)[number]) => Type.Literal(l)),
-				{ description: "Target language" },
-			),
+			lang: Type.String({
+				enum: [...LANGUAGES] as string[],
+				description: "Target language",
+			}),
 			paths: Type.Optional(
 				Type.Array(Type.String(), {
 					description: "Specific files/folders to search",
@@ -103,13 +103,18 @@ export function createAstGrepSearchTool(astGrepClient: AstGrepClient) {
 				};
 			}
 
-			const { pattern, lang, paths, selector, context } = params as {
+			const { pattern, paths, selector, context } = params as {
 				pattern: string;
 				lang: string;
 				paths?: string[];
 				selector?: string;
 				context?: number;
 			};
+			// Strip surrounding quotes if the LLM over-quoted the value (e.g. '"typescript"')
+			const lang = ((params as { lang: string }).lang ?? "").replace(
+				/^"|"$/g,
+				"",
+			);
 
 			if (looksLikeRuleYamlOrPlainText(pattern)) {
 				return {
