@@ -4,6 +4,12 @@ All notable changes to pi-lens will be documented in this file.
 
 ## [Unreleased]
 
+## [3.8.36] - 2026-05-02
+
+### Changed
+
+- **`agent_end` deferred format notification now lists filenames** — the notification now reads `pi-lens deferred format applied to N file(s): foo.ts, bar.ts` instead of just the count, making it immediately clear which files were reformatted without needing to check logs.
+
 ### Added
 
 - **Deferred formatting by default** — files touched by `write` and `edit` are now queued and formatted once at `agent_end` instead of immediately after each edit. This prevents mid-task formatting mutations from invalidating read-guard context and interrupting multi-edit flows. Formatting still runs in real time when `--immediate-format` is passed.
