@@ -58,16 +58,16 @@
     <rect x="261" y="196" width="56"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
     <text x="289" y="213" fill="#58a6ff" text-anchor="middle">LSP</text>
 
-    <rect x="327" y="196" width="82"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
-    <text x="368" y="213" fill="#58a6ff" text-anchor="middle">26 linters</text>
+    <rect x="327" y="196" width="68"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
+    <text x="361" y="213" fill="#58a6ff" text-anchor="middle">Linters</text>
 
-    <rect x="419" y="196" width="82"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
-    <text x="460" y="213" fill="#58a6ff" text-anchor="middle">ast-grep</text>
+    <rect x="405" y="196" width="90"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
+    <text x="450" y="213" fill="#58a6ff" text-anchor="middle">Formatters</text>
 
-    <rect x="511" y="196" width="94"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
-    <text x="558" y="213" fill="#58a6ff" text-anchor="middle">tree-sitter</text>
+    <rect x="505" y="196" width="152" height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
+    <text x="581" y="213" fill="#58a6ff" text-anchor="middle">Structural Analysis</text>
 
-    <rect x="615" y="196" width="84"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
-    <text x="657" y="213" fill="#58a6ff" text-anchor="middle">cascade</text>
+    <rect x="667" y="196" width="84"  height="24" rx="12" fill="#2f81f715" stroke="#2f81f740" stroke-width="1"/>
+    <text x="709" y="213" fill="#58a6ff" text-anchor="middle">Cascade</text>
   </g>
 </svg>
