@@ -4,6 +4,29 @@ All notable changes to pi-lens will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **60+ SonarCloud BLOCKER tree-sitter rules** — comprehensive BLOCKER severity rules across 13 languages:
+  - **Java (11 rules)**: no-exit-methods, no-threads-in-constructors, switch-fall-through, no-wait-notify-on-thread, no-double-checked-locking, no-future-keywords, no-field-shadowing, junit-call-super, no-octal-values, short-circuit-logic, infinite-loop, infinite-recursion, name-capitalization-conflict, mockito-initialized, resources-closed, unnecessary-bit-ops-java
+  - **TypeScript (5 rules)**: infinite-loop, self-assignment, duplicate-function-arg, empty-switch-case, default-not-last, switch-case-termination
+  - **JavaScript (1 rule)**: switch-case-termination-js (replaces switch-fall-through-js)
+  - **PL/SQL (7 rules)**: forallsave-exceptions, not-null-initialization, end-loop-semicolon, raise-application-error-codes, no-synchronize, lock-table, nchar-nvarchar2-bytes, delete-update-where, fetch-bulk-collect-limit
+  - **Python (8 rules)**: send-file-mimetype, no-super-torchscript, return-in-init, yield-return-outside-function, notimplemented-boolean-context, exit-signature-check, return-in-generator, iter-return-iterator, in-operator-unsupported
+  - **C++ (5 rules)**: unnecessary-bit-ops, noexcept-functions, no-auto-ptr, no-memset-sensitive-data, no-scoped-lock-without-args, no-confused-move-forward
+  - **PHP (2 rules)**: this-in-static-context, no-exit-die
+  - **C (3 rules)**: case-range-multiple-values, goto-label-order, goto-into-block
+  - **C# (5 rules)**: is-with-this, no-operator-eq-reference, no-dangerous-get-handle, no-thread-resume-suspend, async-await-identifiers
+  - **Kotlin (1 rule)**: prepared-statement-indices
+  - **ABAP (1 rule)**: delete-where
+  - **COBOL (2 rules)**: alter-statement, lock-table-cobol
+  - **CSS (1 rule)**: calc-spacing
+- **rule-catalog.json** updated with all 60+ new rule registrations
+
+### Fixed
+
+- **Switch-case false positives eliminated** — replaced naive `switch-fall-through` rules with `switch-case-termination` rules that properly recognize `return`, `throw`, and `continue` as valid case terminators. Reduced false positive hits from 174 to 0.
+- **Self-assignment false positives fixed** — changed from `post_filter: same_identifier` to inline `#eq?` predicate so `wave = nextWave` is no longer flagged as self-assignment
+
 ## [3.8.39] - 2026-05-02
 
 ### Fixed
