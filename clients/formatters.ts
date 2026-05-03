@@ -779,7 +779,11 @@ export const cmakeFormatFormatter: FormatterInfo = {
 
 export const psscriptanalyzerFormatFormatter: FormatterInfo = {
 	name: "psscriptanalyzer-format",
-	command: ["pwsh", "-Command", "Invoke-Formatter -ScriptDefinition (Get-Content -Raw '$FILE') | Set-Content '$FILE'"],
+	command: [
+		"pwsh",
+		"-Command",
+		"Invoke-Formatter -ScriptDefinition (Get-Content -Raw '$FILE') | Set-Content '$FILE'",
+	],
 	extensions: [".ps1", ".psm1", ".psd1"],
 	async resolveCommand(filePath, _cwd) {
 		const pwsh = (await which("pwsh")) ?? (await which("powershell"));
@@ -795,11 +799,15 @@ export const psscriptanalyzerFormatFormatter: FormatterInfo = {
 		const pwsh = (await which("pwsh")) ?? (await which("powershell"));
 		if (!pwsh) return false;
 		// Check PSScriptAnalyzer module is available
-		const result = safeSpawn(pwsh, [
-			"-NoProfile",
-			"-Command",
-			"Get-Module -ListAvailable PSScriptAnalyzer | Select-Object -First 1 -ExpandProperty Name",
-		], { timeout: 5_000 });
+		const result = safeSpawn(
+			pwsh,
+			[
+				"-NoProfile",
+				"-Command",
+				"Get-Module -ListAvailable PSScriptAnalyzer | Select-Object -First 1 -ExpandProperty Name",
+			],
+			{ timeout: 5_000 },
+		);
 		return (result.stdout ?? "").includes("PSScriptAnalyzer");
 	},
 };
@@ -926,7 +934,9 @@ export async function getFormattersForFile(
 	} else if (!formatterPolicy) {
 		selectionReason = "detect";
 	} else {
-		selectionReason = candidateFormatters.some((f) => hasExplicitFormatterConfig(f.name, cwd))
+		selectionReason = candidateFormatters.some((f) =>
+			hasExplicitFormatterConfig(f.name, cwd),
+		)
 			? "explicit-config"
 			: "smart-default";
 	}
@@ -935,7 +945,11 @@ export async function getFormattersForFile(
 		phase: "formatter_selected",
 		filePath: filePath,
 		durationMs: 0,
-		metadata: { formatter: selected?.name ?? null, reason: selectionReason, cwd },
+		metadata: {
+			formatter: selected?.name ?? null,
+			reason: selectionReason,
+			cwd,
+		},
 	});
 	emitDashboardFormatterSelected({
 		filePath,

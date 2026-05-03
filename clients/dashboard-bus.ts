@@ -34,8 +34,10 @@ let currentLogPath: string | undefined;
 let terminalStarted = false;
 
 const MAX_PREVIEW_CHARS = 240;
-const SECRET_KEY_RE = /(?:content|text|oldText|newText|replacement|password|token|secret|key|apiKey|authorization|cookie)/i;
-const PATHISH_KEY_RE = /(?:path|file|cwd|root|command|tool|url|query|pattern|lang|language)/i;
+const SECRET_KEY_RE =
+	/(?:content|text|oldText|newText|replacement|password|token|secret|key|apiKey|authorization|cookie)/i;
+const PATHISH_KEY_RE =
+	/(?:path|file|cwd|root|command|tool|url|query|pattern|lang|language)/i;
 
 export function configureDashboardBus(options: DashboardBusOptions): void {
 	shutdownDashboardBus();
@@ -268,7 +270,10 @@ function summarizeValue(value: unknown): unknown {
 	return out;
 }
 
-function truncate(value: string | undefined, max = MAX_PREVIEW_CHARS): string | undefined {
+function truncate(
+	value: string | undefined,
+	max = MAX_PREVIEW_CHARS,
+): string | undefined {
 	if (!value) return value;
 	const normalized = value.replace(/\s+/g, " ").trim();
 	return normalized.length > max ? `${normalized.slice(0, max)}…` : normalized;
@@ -296,14 +301,7 @@ function startTerminalDashboard(logPath: string): void {
 		if (process.platform === "win32") {
 			spawn(
 				"cmd.exe",
-				[
-					"/c",
-					"start",
-					"pi-lens dashboard",
-					node,
-					scriptPath,
-					logPath,
-				],
+				["/c", "start", "pi-lens dashboard", node, scriptPath, logPath],
 				{ detached: true, stdio: "ignore", windowsHide: true },
 			).unref();
 			return;
@@ -313,7 +311,10 @@ function startTerminalDashboard(logPath: string): void {
 			const command = `${shellQuote(node)} ${shellQuote(scriptPath)} ${shellQuote(logPath)}`;
 			spawn(
 				"osascript",
-				["-e", `tell application "Terminal" to do script ${JSON.stringify(command)}`],
+				[
+					"-e",
+					`tell application "Terminal" to do script ${JSON.stringify(command)}`,
+				],
 				{ detached: true, stdio: "ignore" },
 			).unref();
 			return;
