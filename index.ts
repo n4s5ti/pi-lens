@@ -46,7 +46,7 @@ import {
 } from "./clients/runtime-context.js";
 import { RuntimeCoordinator } from "./clients/runtime-coordinator.js";
 import { handleSessionStart } from "./clients/runtime-session.js";
-import { handleToolResult } from "./clients/runtime-tool-result.js";
+import { clearLastAnalyzedStateCache, handleToolResult } from "./clients/runtime-tool-result.js";
 import { cancelLSPIdleReset, handleTurnEnd } from "./clients/runtime-turn.js";
 import { TreeSitterClient } from "./clients/tree-sitter-client.js";
 import { handleBooboo } from "./commands/booboo.js";
@@ -1090,7 +1090,7 @@ export default function (pi: ExtensionAPI) {
 				typeof readGuard?.isNewFile !== "function" ||
 				!readGuard.isNewFile(filePath);
 			if (readGuard && isExistingFile) {
-				const { touchedLines, preflightError } = getTouchedLinesForGuard(
+				const { touchedLines, editRanges, preflightError } = getTouchedLinesForGuard(
 					event,
 					filePath,
 					runtime.telemetrySessionId,
@@ -1110,7 +1110,7 @@ export default function (pi: ExtensionAPI) {
 				});
 				const verdict =
 					typeof readGuard.checkEdit === "function"
-						? readGuard.checkEdit(filePath, touchedLines)
+						? readGuard.checkEdit(filePath, touchedLines, editRanges)
 						: { action: "allow" as const };
 				if (verdict.action === "block") {
 					return {
@@ -1265,6 +1265,7 @@ export default function (pi: ExtensionAPI) {
 	// Clear cascade snapshot at start of each new turn so stale data never leaks
 	pi.on("turn_start", () => {
 		runtime.beginTurn();
+		clearLastAnalyzedStateCache();
 	});
 
 	pi.on("agent_end", async (_event, ctx) => {

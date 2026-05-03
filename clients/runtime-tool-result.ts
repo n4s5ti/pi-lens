@@ -77,6 +77,13 @@ const lastAnalyzedStateByFile = new Map<
 	{ turnIndex: number; stateHash: string }
 >();
 
+// Called at turn_start — entries from the previous turn can never match the new
+// turnIndex so they're dead weight. Clearing here keeps the map bounded to the
+// files touched in the current turn only (typically < 20).
+export function clearLastAnalyzedStateCache(): void {
+	lastAnalyzedStateByFile.clear();
+}
+
 function getFileStateHash(filePath: string): string {
 	try {
 		const content = nodeFs.readFileSync(filePath);

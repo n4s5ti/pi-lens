@@ -197,11 +197,22 @@ export class LSPService {
 		clientScope: "primary" | "all",
 	): void {
 		const key = `${normalizeMapKey(filePath)}:${clientScope}`;
+		const now = Date.now();
 		this.recentTouches.set(key, {
 			fingerprint: this.fingerprintContent(content),
-			touchedAt: Date.now(),
+			touchedAt: now,
 			clientScope,
 		});
+		// Trim entries that are already past the debounce window — shouldSkipTouch
+		// ignores them anyway, so they serve no purpose. Only sweep when the map
+		// exceeds the threshold to avoid iterating on every call.
+		if (this.recentTouches.size > 200) {
+			for (const [k, v] of this.recentTouches) {
+				if (now - v.touchedAt > TOUCH_DEBOUNCE_MS) {
+					this.recentTouches.delete(k);
+				}
+			}
+		}
 	}
 
 	/**
