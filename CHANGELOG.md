@@ -4,6 +4,8 @@ All notable changes to pi-lens will be documented in this file.
 
 ## [Unreleased]
 
+## [3.8.40] - 2026-05-04
+
 ### Added
 
 - **60+ SonarCloud BLOCKER tree-sitter rules** — comprehensive BLOCKER severity rules across 13 languages:
