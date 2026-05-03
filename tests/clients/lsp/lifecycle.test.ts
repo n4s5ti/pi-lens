@@ -40,9 +40,11 @@ describe("LSP Launch", () => {
 		const scriptPath = path.join(os.tmpdir(), `pi-lens-test-${Date.now()}.js`);
 		fs.writeFileSync(scriptPath, "process.exit(1);");
 
-		await expect(launchLSP(process.execPath, [scriptPath], { startupFailureWindowMs: 500 })).rejects.toThrow(
-			/exited immediately/,
-		);
+		await expect(
+			launchLSP(process.execPath, [scriptPath], {
+				startupFailureWindowMs: 500,
+			}),
+		).rejects.toThrow(/exited immediately/);
 
 		fs.unlinkSync(scriptPath);
 	});
@@ -55,7 +57,27 @@ describe("LSP Launch", () => {
 
 		expect(proc.process.killed).toBe(false);
 		await stopLSP(proc);
-		expect(proc.process.killed).toBe(true);
+		expect(
+			proc.process.killed ||
+				proc.process.exitCode !== null ||
+				proc.process.signalCode !== null,
+		).toBe(true);
+
+		fs.unlinkSync(scriptPath);
+	});
+
+	it("stopLSP returns when the process already exited", async () => {
+		const scriptPath = path.join(os.tmpdir(), `pi-lens-test-${Date.now()}.js`);
+		fs.writeFileSync(scriptPath, "setTimeout(() => process.exit(0), 250);");
+
+		const proc = await launchLSP(process.execPath, [scriptPath], {
+			startupFailureWindowMs: 10,
+		});
+		await new Promise<void>((resolve) =>
+			proc.process.once("exit", () => resolve()),
+		);
+
+		await expect(stopLSP(proc)).resolves.toBeUndefined();
 
 		fs.unlinkSync(scriptPath);
 	});

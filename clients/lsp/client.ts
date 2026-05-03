@@ -252,6 +252,10 @@ const PULL_DIAGNOSTICS_RETRY_INTERVAL_MS = positiveIntFromEnv(
 	"PI_LENS_LSP_PULL_RETRY_INTERVAL_MS",
 	250,
 );
+const SHUTDOWN_REQUEST_TIMEOUT_MS = positiveIntFromEnv(
+	"PI_LENS_LSP_SHUTDOWN_TIMEOUT_MS",
+	1000,
+);
 
 const LSP_CRASH_CODES = new Set([
 	"ERR_STREAM_DESTROYED",
@@ -740,9 +744,12 @@ async function clientShutdown(state: LSPClientState): Promise<void> {
 	state.openDocuments.clear();
 	state.diagnosticEmitter.removeAllListeners();
 	try {
-		await safeSendRequest(state.connection, "shutdown", {});
+		await withTimeout(
+			safeSendRequest(state.connection, "shutdown", {}),
+			SHUTDOWN_REQUEST_TIMEOUT_MS,
+		);
 	} catch {
-		/* ignore */
+		/* ignore — proceed to exit/kill so shutdown cannot hang the session */
 	}
 	try {
 		await safeSendNotification(state.connection, "exit", {});
@@ -1270,19 +1277,24 @@ async function withTimeout<T>(
 	promise: Promise<T>,
 	timeoutMs: number,
 ): Promise<T> {
+	let timeout: ReturnType<typeof setTimeout> | undefined;
 	// Suppress unhandled rejection if `promise` rejects AFTER the timeout
 	// wins the race — Promise.race settles on the first result but the
 	// losing promises still run, and any later rejection would be uncaught.
 	promise.catch(() => {});
-	return Promise.race([
-		promise,
-		new Promise<T>((_, reject) =>
-			setTimeout(
-				() => reject(new Error(`Timeout after ${timeoutMs}ms`)),
-				timeoutMs,
-			),
-		),
-	]);
+	try {
+		return await Promise.race([
+			promise,
+			new Promise<T>((_, reject) => {
+				timeout = setTimeout(
+					() => reject(new Error(`Timeout after ${timeoutMs}ms`)),
+					timeoutMs,
+				);
+			}),
+		]);
+	} finally {
+		if (timeout) clearTimeout(timeout);
+	}
 }
 
 function positiveIntFromEnv(name: string, fallback: number): number {

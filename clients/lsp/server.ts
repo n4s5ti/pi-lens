@@ -12,10 +12,11 @@ import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { access, appendFile, mkdir, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { KIND_EXTENSIONS } from "../file-kinds.js"
+import { KIND_EXTENSIONS } from "../file-kinds.js";
 import { ensureTool, getToolEnvironment } from "../installer/index.js";
 import { logLatency } from "../latency-logger.js";
 import { type LSPProcess, launchLSP } from "./launch.js";
+import { normalizeMapKey } from "./path-utils.js";
 
 // --- Types ---
 
@@ -497,7 +498,8 @@ export function NearestRoot(
 
 	return async (file: string): Promise<string | undefined> => {
 		// Cache key is the resolved directory — all files in the same dir share a root.
-		const dirKey = path.resolve(path.dirname(file));
+		const startDir = path.resolve(path.dirname(file));
+		const dirKey = normalizeMapKey(startDir);
 
 		// Fast path: already resolved for this directory.
 		const cached = cache.get(dirKey);
@@ -510,7 +512,7 @@ export function NearestRoot(
 		if (flying) return flying;
 
 		const promise = (async (): Promise<string | undefined> => {
-			let currentDir = dirKey;
+			let currentDir = startDir;
 			const fsRoot = path.parse(currentDir).root;
 			const stop = stopDir ? path.resolve(stopDir) : fsRoot;
 
@@ -1395,11 +1397,7 @@ export const NixServer = createInteractiveServer({
 export const BashServer: LSPServerInfo = {
 	id: "bash",
 	name: "Bash Language Server",
-	extensions: [
-		".bash",
-		".sh",
-		".zsh",
-	],
+	extensions: [".bash", ".sh", ".zsh"],
 	root: FileDirRoot,
 	spawn(root, options) {
 		return resolveAndLaunch(
@@ -1417,10 +1415,7 @@ export const BashServer: LSPServerInfo = {
 export const DockerServer: LSPServerInfo = {
 	id: "docker",
 	name: "Dockerfile Language Server",
-	extensions: [
-		".dockerfile",
-		"Dockerfile",
-	],
+	extensions: [".dockerfile", "Dockerfile"],
 	root: RootWithFallback(
 		PriorityRoot([
 			[
@@ -1558,9 +1553,7 @@ export const PrismaServer: LSPServerInfo = {
 export const VueServer: LSPServerInfo = {
 	id: "vue",
 	name: "Vue Language Server",
-	extensions: [
-		".vue",
-	],
+	extensions: [".vue"],
 	root: RootWithFallback(
 		IgnoreHomeRoot(
 			createRootDetector([
@@ -1610,9 +1603,7 @@ export const VueServer: LSPServerInfo = {
 export const SvelteServer: LSPServerInfo = {
 	id: "svelte",
 	name: "Svelte Language Server",
-	extensions: [
-		".svelte",
-	],
+	extensions: [".svelte"],
 	root: RootWithFallback(
 		IgnoreHomeRoot(
 			createRootDetector([
@@ -1654,12 +1645,7 @@ export const ESLintServer: LSPServerInfo = {
 	id: "eslint",
 	name: "ESLint Language Server",
 	// Note: .ts/.tsx handled by TypeScript LSP + Biome
-	extensions: [
-		".js",
-		".jsx",
-		".svelte",
-		".vue",
-	],
+	extensions: [".js", ".jsx", ".svelte", ".vue"],
 	root: IgnoreHomeRoot(
 		createRootDetector([
 			".eslintrc",

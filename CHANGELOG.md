@@ -24,6 +24,19 @@ All notable changes to pi-lens will be documented in this file.
 
 ### Fixed
 
+- **Read-guard: false `file_modified` blocks after own edits** — `ReadGuard` was blocking the second edit to a file because the model's first write changed the file's mtime, making `FileTime.hasChanged()` return `true` on the next `checkEdit`. Added `recordWritten(filePath)` to `ReadGuard` and wired it into the `tool_result` handler (post-write, file already on disk), so the FileTime stamp stays in sync with the model's own writes. Eliminates the spurious `file_modified` blocks that appeared on every multi-edit file in a session.
+
+- **LSP: parallel-turn root-resolution timeouts** — `NearestRoot` performed a fresh `fs.stat` directory walk on every call with no caching. When Claude Code edited multiple files simultaneously (e.g. a 4-file turn), all pipelines raced `NearestRoot` concurrently, saturating Windows filesystem I/O and triggering the 750ms `lsp_client_wait_timeout` on all but the first. `NearestRoot` now maintains per-instance result and in-flight caches keyed by resolved directory: successful roots are cached for the session lifetime; concurrent calls for the same directory share one walk promise. Only successful roots are cached so a `package.json` created mid-session is still detected on the next call.
+
+- **Memory: `lastAnalyzedStateByFile` cleared each turn** — module-level Map in `runtime-tool-result.ts` accumulated dead entries across turns (entries from previous turns can never match the new `turnIndex`). Now cleared at `turn_start` alongside `runtime.beginTurn()`, keeping the map bounded to files touched in the current turn only. (refs #50)
+- **Memory: `recentTouches` stale entry eviction** — `LSPService.recentTouches` grew unboundedly across a session with one entry per unique file path. Entries older than `TOUCH_DEBOUNCE_MS` are already ignored by `shouldSkipTouch`; a threshold-based sweep (triggered when size > 200) now removes them. (refs #50)
+- **Memory: orphaned LSP child processes on Windows** — `clientShutdown` only called `process.kill()` which on Windows terminates the direct child but leaves grandchildren (e.g. `tsserver.js`) as orphaned OS processes each holding 300–600MB. Both the normal shutdown and crash paths now go through a shared `killProcessTree` helper: on Windows it runs `taskkill /F /T` via absolute `SystemRoot` path and awaits completion before returning; on other platforms it sends `SIGTERM`. The SIGKILL fallback timer is also skipped on Windows since `taskkill /F` already force-terminates. (refs #50)
+- **Memory: file-time session state not cleared on session reset** — `clearAllSessions()` from `file-time.ts` is now called during `handleSessionStart`, clearing stale file timestamp state that previously accumulated across session switches. (refs #50)
+- **Memory: pending ast-grep warn timers not cancelled on session reset** — `resetDispatchBaselines()` left active `astGrepWarnDebounceTimers` running into a cleared session context. Now explicitly cancelled and cleared on reset. (refs #50)
+- **Security: `taskkill` spawned via absolute path** — both the normal shutdown and crash paths now resolve `taskkill.exe` through `process.env.SystemRoot` instead of relying on PATH, eliminating the SonarCloud PATH-injection hotspot.
+- **LSP: shutdown cannot hang indefinitely** — `client.shutdown()` now bounds the graceful `shutdown` request and proceeds to `exit`/process-tree kill if a server stops responding.
+- **LSP: test cleanup stop helper hardened on Windows** — `stopLSP()` now uses the absolute `taskkill.exe` path, handles already-exited processes, and avoids orphaning grandchildren by killing the process tree before the direct child on Windows.
+
 - **booboo project root detection** — `resolveProjectRoot` now walks up to the nearest ancestor with a root marker (`package.json`, `tsconfig.json`, `.git`, etc.), then falls back to walking down one level if exactly one immediate subdirectory has a root marker. Fixes scans running against the wrong directory in nested-project layouts (e.g. `pi-models/pi-models/`).
 
 - **Switch-case false positives eliminated** — replaced naive `switch-fall-through` rules with `switch-case-termination` rules that properly recognize `return`, `throw`, and `continue` as valid case terminators. Reduced false positive hits from 174 to 0.
@@ -1159,7 +1172,6 @@ All runtime-applicable TypeScript ast-grep rules now have JavaScript equivalents
 - **Rust performance core (`pi-lens-core`)** — Optional Rust binary for CPU-intensive operations.
   All features fall back to TypeScript automatically if the binary is not available (it is **not**
   built automatically on `npm install` — run `npm run rust:build` once if you have Rust installed).
-
   - **File scanning** — ripgrep’s `ignore` crate for `.gitignore`-aware project scanning
   - **Similarity detection** — parallel 57×72 state-matrix index, persisted to
     `.pi-lens/rust-index.json` between invocations (fixes in-memory cache that reset on every
@@ -1213,7 +1225,6 @@ All runtime-applicable TypeScript ast-grep rules now have JavaScript equivalents
   - Removed `clients/interviewer-templates.ts` (240 lines)
   - Removed initialization from `index.ts`
 - **Deleted deprecated commands** — All were superseded by `/lens-booboo`:
-
   - `/lens-booboo-fix` command (fix-from-booboo.ts, 430 lines) — showed warning to use `/lens-booboo`
   - `/lens-fix-simplified` command (fix-simplified.ts, 770 lines) — never registered, unused
   - `/lens-rate` command (rate.ts, 340 lines) — showed warning to use `/lens-booboo`
@@ -1232,7 +1243,6 @@ All runtime-applicable TypeScript ast-grep rules now have JavaScript equivalents
   - Broken runner tests (7 files) — thin CLI wrappers with wrong imports
   - Trivial utility tests (5 files) — file extension parsing, string sanitization
 - **Added meaningful integration tests**:
-
   - `tests/clients/dispatch/dispatcher-flow.test.ts` — Runner registration, execution, delta mode, conditional runners
   - `tests/extension-hooks.test.ts` — pi API: tool/command/flag registration, event handlers
   - `tests/mocks/runner-factory.ts` — Mock runners for testing without real CLI tools
@@ -1568,7 +1578,6 @@ Migrated 20 critical security rules to NAPI (fast native execution):
 Three new lint runners with full test coverage:
 
 - **Spellcheck runner** (`clients/dispatch/runners/spellcheck.ts`): Markdown spellchecking
-
   - Uses `typos-cli` (Rust-based, fast, low false positives)
   - Checks `.md` and `.mdx` files
   - Priority 30, runs after code quality checks
@@ -1576,7 +1585,6 @@ Three new lint runners with full test coverage:
   - Install: `cargo install typos-cli`
 
 - **Oxlint runner** (`clients/dispatch/runners/oxlint.ts`): Fast JS/TS linting
-
   - Uses `oxlint` from Oxc project (Rust-based, ~100x faster than ESLint)
   - Zero-config by default
   - JSON output with fix suggestions

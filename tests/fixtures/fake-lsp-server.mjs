@@ -245,6 +245,7 @@ function handle(raw) {
 
 	// Shutdown
 	if (data.method === "shutdown") {
+		if (process.env.FAKE_LSP_IGNORE_SHUTDOWN === "1") return;
 		send({ jsonrpc: "2.0", id: data.id, result: null });
 		return;
 	}

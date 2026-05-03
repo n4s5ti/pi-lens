@@ -41,7 +41,6 @@ import { clearGraphCache } from "./review-graph/builder.js";
 import type { RuffClient } from "./ruff-client.js";
 import { RUNTIME_CONFIG } from "./runtime-config.js";
 import { safeSpawnAsync } from "./safe-spawn.js";
-import { pushDispatchResult } from "./diagnostic-widget.js";
 import { formatSecrets, scanForSecrets } from "./secrets-scanner.js";
 import {
 	getAutofixPolicyForFile,
@@ -726,7 +725,12 @@ export async function runFormatPhase(
 		if (result.anyChanged) {
 			formatChanged = true;
 			dbg(
-				"autoformat: " + result.formatters.map((f) => f.name + "(" + (f.changed ? "changed" : "unchanged") + ")").join(", "),
+				"autoformat: " +
+					result.formatters
+						.map(
+							(f) => f.name + "(" + (f.changed ? "changed" : "unchanged") + ")",
+						)
+						.join(", "),
 			);
 		}
 		if (!result.allSucceeded) {
@@ -735,7 +739,10 @@ export async function runFormatPhase(
 				...failures.map((f) => `${f.name}: ${f.error ?? "unknown error"}`),
 			);
 			dbg(
-				"autoformat: " + failures.map((f) => f.name + " failed: " + (f.error ?? "unknown error")).join("; "),
+				"autoformat: " +
+					failures
+						.map((f) => f.name + " failed: " + (f.error ?? "unknown error"))
+						.join("; "),
 			);
 		}
 	} catch (err) {
@@ -890,7 +897,6 @@ export async function runPipeline(
 			writeIndex: ctx.telemetry?.writeIndex ?? 0,
 		},
 	);
-	pushDispatchResult(dispatchResult, filePath);
 	const hasBlockers = dispatchResult.hasBlockers;
 
 	if (dispatchResult.diagnostics.length > 0) {
@@ -948,9 +954,17 @@ export async function runPipeline(
 		const changedList = [...piChangedFiles].map((changedFile) =>
 			toRunnerDisplayPath(cwd, changedFile),
 		);
-		const topFiles = changedList.slice(0, 8).map((f) => "  - " + f).join("\n");
-		const overflow = changedList.length > 8 ? "\n  - ... and " + (changedList.length - 8) + " more" : "";
-		const fileList = changedList.length ? "\nModified files:\n" + topFiles + overflow : "";
+		const topFiles = changedList
+			.slice(0, 8)
+			.map((f) => "  - " + f)
+			.join("\n");
+		const overflow =
+			changedList.length > 8
+				? "\n  - ... and " + (changedList.length - 8) + " more"
+				: "";
+		const fileList = changedList.length
+			? "\nModified files:\n" + topFiles + overflow
+			: "";
 		output += `\n\n⚠️ **File was modified by auto-format/fix. You MUST re-read modified file(s) before making any further edits — the content on disk has changed (whitespace, indentation, quotes, or code). Editing from memory will produce mismatches.**${fileList}`;
 	}
 	phase.end("dispatch_lint", {

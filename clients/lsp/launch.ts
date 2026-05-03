@@ -402,7 +402,19 @@ function _attachErrorHandler(
 	proc.on("error", (err) => {
 		if (logContext) {
 			logSessionStart(
-				"lsp process " + context + ": spawn-error command=" + logContext.command + " args=" + JSON.stringify(logContext.args) + " cwd=" + logContext.cwd + " pid=" + (logContext.pid ?? 0) + " error=" + err.message + (stderrPreview ? " stderr=" + compactLogValue(stderrPreview) : ""),
+				"lsp process " +
+					context +
+					": spawn-error command=" +
+					logContext.command +
+					" args=" +
+					JSON.stringify(logContext.args) +
+					" cwd=" +
+					logContext.cwd +
+					" pid=" +
+					(logContext.pid ?? 0) +
+					" error=" +
+					err.message +
+					(stderrPreview ? " stderr=" + compactLogValue(stderrPreview) : ""),
 			);
 		}
 
@@ -422,12 +434,37 @@ function _attachErrorHandler(
 		if (code !== 0 && code !== null) {
 			if (logContext) {
 				logSessionStart(
-					"lsp process " + context + ": closed code=" + code + (signal ? " signal=" + signal : "") + " command=" + logContext.command + " args=" + JSON.stringify(logContext.args) + " cwd=" + logContext.cwd + " pid=" + (logContext.pid ?? 0) + (stderrPreview ? " stderr=" + compactLogValue(stderrPreview) : ""),
+					"lsp process " +
+						context +
+						": closed code=" +
+						code +
+						(signal ? " signal=" + signal : "") +
+						" command=" +
+						logContext.command +
+						" args=" +
+						JSON.stringify(logContext.args) +
+						" cwd=" +
+						logContext.cwd +
+						" pid=" +
+						(logContext.pid ?? 0) +
+						(stderrPreview ? " stderr=" + compactLogValue(stderrPreview) : ""),
 				);
 			}
 		} else if (signal && logContext) {
 			logSessionStart(
-				"lsp process " + context + ": closed signal=" + signal + " command=" + logContext.command + " args=" + JSON.stringify(logContext.args) + " cwd=" + logContext.cwd + " pid=" + (logContext.pid ?? 0) + (stderrPreview ? " stderr=" + compactLogValue(stderrPreview) : ""),
+				"lsp process " +
+					context +
+					": closed signal=" +
+					signal +
+					" command=" +
+					logContext.command +
+					" args=" +
+					JSON.stringify(logContext.args) +
+					" cwd=" +
+					logContext.cwd +
+					" pid=" +
+					(logContext.pid ?? 0) +
+					(stderrPreview ? " stderr=" + compactLogValue(stderrPreview) : ""),
 			);
 		}
 	});
@@ -451,7 +488,7 @@ export async function launchLSP(
 	command: string,
 	args: string[] = [],
 	options: SpawnOptions & {
-		startupFailureWindowMs?: number,
+		startupFailureWindowMs?: number;
 	} = {},
 ): Promise<LSPProcess> {
 	const cwd = String(options.cwd ?? process.cwd());
@@ -467,7 +504,9 @@ export async function launchLSP(
 	// - If already absolute, use as-is
 	// - If it's a simple command (no path separators), let system find it via PATH
 	// - Otherwise, resolve relative to cwd
-	const isRelativePath = !path.isAbsolute(command) && (command.includes(path.sep) || command.includes("/"));
+	const isRelativePath =
+		!path.isAbsolute(command) &&
+		(command.includes(path.sep) || command.includes("/"));
 	const explicitCommand = isRelativePath ? path.resolve(cwd, command) : command;
 	const resolvedCommand =
 		!path.isAbsolute(command) &&
@@ -645,7 +684,7 @@ export async function launchLSP(
 					return DEFAULT_STARTUP_FAILURE_WINDOW_MS;
 				}
 			})();
-				
+
 			// Give shell-backed Windows launches a slightly longer window because
 			// npm/cmd shims can fail asynchronously after the initial spawn succeeds.
 			setTimeout(() => {
@@ -803,38 +842,72 @@ export async function launchViaPython(
  * Stop an LSP process gracefully
  */
 export async function stopLSP(handle: LSPProcess): Promise<void> {
-	return new Promise((resolve) => {
-		// Send SIGTERM first
-		handle.process.kill("SIGTERM");
+	if (handle.process.exitCode !== null || handle.process.signalCode !== null) {
+		return;
+	}
 
-		// Force kill after timeout
-		const timeout = setTimeout(() => {
-			if (!handle.process.killed) {
-				if (isWindows && handle.pid > 0) {
-					// SIGKILL is unreliable for cmd.exe/PowerShell child trees on Windows.
-					// taskkill /F /T kills the process and all its children.
-					try {
-						nodeSpawn("taskkill", ["/F", "/T", "/PID", String(handle.pid)], {
-							shell: false,
-							windowsHide: true,
-						});
-					} catch {
-						handle.process.kill("SIGKILL");
-					}
-				} else {
+	return new Promise((resolve) => {
+		let settled = false;
+		let forceTimeout: ReturnType<typeof setTimeout> | undefined;
+		let giveUpTimeout: ReturnType<typeof setTimeout> | undefined;
+
+		const done = () => {
+			if (settled) return;
+			settled = true;
+			if (forceTimeout) clearTimeout(forceTimeout);
+			if (giveUpTimeout) clearTimeout(giveUpTimeout);
+			handle.process.off("exit", done);
+			handle.process.off("error", done);
+			resolve();
+		};
+
+		handle.process.once("exit", done);
+		handle.process.once("error", done);
+
+		const killWindowsTree = (): boolean => {
+			if (!isWindows || handle.pid <= 0) return false;
+			try {
+				// Absolute path avoids PATH-resolution substitution on Windows.
+				const taskkill = `${process.env.SystemRoot ?? "C:\\Windows"}\\System32\\taskkill.exe`;
+				const killer = nodeSpawn(
+					taskkill,
+					["/F", "/T", "/PID", String(handle.pid)],
+					{
+						shell: false,
+						windowsHide: true,
+					},
+				);
+				killer.once("error", done);
+				return true;
+			} catch {
+				return false;
+			}
+		};
+
+		try {
+			// On Windows, kill the tree first; killing the direct child can orphan
+			// grandchildren (e.g. tsserver.js behind a cmd/npm shim).
+			if (!killWindowsTree()) {
+				handle.process.kill("SIGTERM");
+			}
+		} catch {
+			done();
+			return;
+		}
+
+		forceTimeout = setTimeout(() => {
+			if (settled) return;
+			try {
+				if (!killWindowsTree()) {
 					handle.process.kill("SIGKILL");
 				}
+			} catch {
+				done();
+				return;
 			}
+			// If the process had already exited before listeners were attached, no
+			// exit event will arrive. Resolve rather than hanging test cleanup forever.
+			giveUpTimeout = setTimeout(done, 500);
 		}, 5000);
-
-		handle.process.on("exit", () => {
-			clearTimeout(timeout);
-			resolve();
-		});
-
-		handle.process.on("error", () => {
-			clearTimeout(timeout);
-			resolve();
-		});
 	});
 }

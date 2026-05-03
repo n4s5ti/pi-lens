@@ -151,4 +151,19 @@ describe("LSP Client Integration — cold start", () => {
 			}),
 		).rejects.toThrow();
 	});
+
+	it("shutdown falls back to process kill when server ignores shutdown", async () => {
+		const proc = await launchLSP(process.execPath, [FAKE_SERVER_PATH], {
+			cwd: process.cwd(),
+			env: { ...process.env, FAKE_LSP_IGNORE_SHUTDOWN: "1" },
+		});
+		const client = await createLSPClient({
+			serverId: "fake",
+			process: proc,
+			root: process.cwd(),
+		});
+
+		await expect(client.shutdown()).resolves.toBeUndefined();
+		expect(client.isAlive()).toBe(false);
+	});
 });
