@@ -1495,17 +1495,25 @@ const ESLINT_CONFIGS = [
 	"eslint.config.ts",
 ];
 
-function walkUpDirsUntilPackageJson(cwd: string): string[] {
+function walkUpDirs(cwd: string): string[] {
 	const dirs: string[] = [];
 	let dir = cwd;
 	const root = path.parse(dir).root;
 	while (true) {
 		dirs.push(dir);
-		if (fs.existsSync(path.join(dir, "package.json"))) break;
 		if (dir === root) break;
 		const parent = path.dirname(dir);
 		if (parent === dir) break;
 		dir = parent;
+	}
+	return dirs;
+}
+
+function walkUpDirsUntilPackageJson(cwd: string): string[] {
+	const dirs: string[] = [];
+	for (const dir of walkUpDirs(cwd)) {
+		dirs.push(dir);
+		if (fs.existsSync(path.join(dir, "package.json"))) break;
 	}
 	return dirs;
 }
@@ -1580,7 +1588,7 @@ export function hasBiomeConfig(cwd: string): boolean {
 }
 
 export function getBiomeConfigPath(cwd: string): string | undefined {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	for (const dir of walkUpDirs(cwd)) {
 		const jsoncPath = path.join(dir, "biome.jsonc");
 		if (fs.existsSync(jsoncPath)) return jsoncPath;
 		const jsonPath = path.join(dir, "biome.json");
@@ -1590,7 +1598,9 @@ export function getBiomeConfigPath(cwd: string): string | undefined {
 }
 
 export function hasOxfmtConfig(cwd: string): boolean {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	let dir = cwd;
+	const root = path.parse(dir).root;
+	while (true) {
 		if (fs.existsSync(path.join(dir, "oxfmt.toml"))) return true;
 		if (fs.existsSync(path.join(dir, ".oxfmtrc.json"))) return true;
 		const pkgPath = path.join(dir, "package.json");
@@ -1607,12 +1617,16 @@ export function hasOxfmtConfig(cwd: string): boolean {
 				if (deps["@oxc-project/oxfmt"]) return true;
 			} catch {}
 		}
+		if (dir === root) break;
+		const parent = path.dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
 	}
 	return false;
 }
 
 export function hasStylelintConfig(cwd: string): boolean {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	for (const dir of walkUpDirs(cwd)) {
 		if (STYLELINT_CONFIGS.some((cfg) => fs.existsSync(path.join(dir, cfg)))) {
 			return true;
 		}
@@ -1628,54 +1642,60 @@ export function hasStylelintConfig(cwd: string): boolean {
 }
 
 export function hasSqlfluffConfig(cwd: string): boolean {
-	for (const cfg of SQLFLUFF_CONFIGS) {
-		const cfgPath = path.join(cwd, cfg);
-		if (!fs.existsSync(cfgPath)) continue;
-		if (cfg === "pyproject.toml") {
-			try {
-				const content = fs.readFileSync(cfgPath, "utf-8");
-				if (content.includes("[tool.sqlfluff]")) return true;
-			} catch {}
-			continue;
+	for (const dir of walkUpDirs(cwd)) {
+		for (const cfg of SQLFLUFF_CONFIGS) {
+			const cfgPath = path.join(dir, cfg);
+			if (!fs.existsSync(cfgPath)) continue;
+			if (cfg === "pyproject.toml") {
+				try {
+					const content = fs.readFileSync(cfgPath, "utf-8");
+					if (content.includes("[tool.sqlfluff]")) return true;
+				} catch {}
+				continue;
+			}
+			if (cfg === "setup.cfg" || cfg === "tox.ini") {
+				try {
+					const content = fs.readFileSync(cfgPath, "utf-8");
+					if (content.includes("[sqlfluff]")) return true;
+				} catch {}
+				continue;
+			}
+			return true;
 		}
-		if (cfg === "setup.cfg" || cfg === "tox.ini") {
-			try {
-				const content = fs.readFileSync(cfgPath, "utf-8");
-				if (content.includes("[sqlfluff]")) return true;
-			} catch {}
-			continue;
-		}
-		return true;
 	}
 
-	for (const depFile of ["requirements.txt", "Pipfile", "pyproject.toml"]) {
-		const depPath = path.join(cwd, depFile);
-		if (!fs.existsSync(depPath)) continue;
-		try {
-			const content = fs.readFileSync(depPath, "utf-8").toLowerCase();
-			if (content.includes("sqlfluff")) return true;
-		} catch {}
+	for (const dir of walkUpDirs(cwd)) {
+		for (const depFile of ["requirements.txt", "Pipfile", "pyproject.toml"]) {
+			const depPath = path.join(dir, depFile);
+			if (!fs.existsSync(depPath)) continue;
+			try {
+				const content = fs.readFileSync(depPath, "utf-8").toLowerCase();
+				if (content.includes("sqlfluff")) return true;
+			} catch {}
+		}
 	}
 
 	return false;
 }
 
 export function hasRubocopConfig(cwd: string): boolean {
-	for (const cfg of RUBOCOP_CONFIGS) {
-		if (fs.existsSync(path.join(cwd, cfg))) return true;
-	}
-	const gemfile = path.join(cwd, "Gemfile");
-	if (fs.existsSync(gemfile)) {
-		try {
-			const content = fs.readFileSync(gemfile, "utf-8");
-			return content.includes("rubocop");
-		} catch {}
+	for (const dir of walkUpDirs(cwd)) {
+		for (const cfg of RUBOCOP_CONFIGS) {
+			if (fs.existsSync(path.join(dir, cfg))) return true;
+		}
+		const gemfile = path.join(dir, "Gemfile");
+		if (fs.existsSync(gemfile)) {
+			try {
+				const content = fs.readFileSync(gemfile, "utf-8");
+				if (content.includes("rubocop")) return true;
+			} catch {}
+		}
 	}
 	return false;
 }
 
 export function hasMypyConfig(cwd: string): boolean {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	for (const dir of walkUpDirs(cwd)) {
 		for (const cfg of MYPY_CONFIGS) {
 			const cfgPath = path.join(dir, cfg);
 			if (!fs.existsSync(cfgPath)) continue;
@@ -1699,51 +1719,57 @@ export function hasMypyConfig(cwd: string): boolean {
 }
 
 export function hasYamllintConfig(cwd: string): boolean {
-	for (const cfg of YAMLLINT_CONFIGS) {
-		const cfgPath = path.join(cwd, cfg);
-		if (!fs.existsSync(cfgPath)) continue;
-		if (cfg === "pyproject.toml") {
-			try {
-				const content = fs.readFileSync(cfgPath, "utf-8");
-				if (content.includes("[tool.yamllint]")) return true;
-			} catch {}
-			continue;
+	for (const dir of walkUpDirs(cwd)) {
+		for (const cfg of YAMLLINT_CONFIGS) {
+			const cfgPath = path.join(dir, cfg);
+			if (!fs.existsSync(cfgPath)) continue;
+			if (cfg === "pyproject.toml") {
+				try {
+					const content = fs.readFileSync(cfgPath, "utf-8");
+					if (content.includes("[tool.yamllint]")) return true;
+				} catch {}
+				continue;
+			}
+			if (cfg === "setup.cfg" || cfg === "tox.ini") {
+				try {
+					const content = fs.readFileSync(cfgPath, "utf-8");
+					if (content.includes("[yamllint]")) return true;
+				} catch {}
+				continue;
+			}
+			return true;
 		}
-		if (cfg === "setup.cfg" || cfg === "tox.ini") {
-			try {
-				const content = fs.readFileSync(cfgPath, "utf-8");
-				if (content.includes("[yamllint]")) return true;
-			} catch {}
-			continue;
-		}
-		return true;
 	}
 
-	for (const depFile of ["requirements.txt", "Pipfile", "pyproject.toml"]) {
-		const depPath = path.join(cwd, depFile);
-		if (!fs.existsSync(depPath)) continue;
-		try {
-			const content = fs.readFileSync(depPath, "utf-8").toLowerCase();
-			if (content.includes("yamllint")) return true;
-		} catch {}
+	for (const dir of walkUpDirs(cwd)) {
+		for (const depFile of ["requirements.txt", "Pipfile", "pyproject.toml"]) {
+			const depPath = path.join(dir, depFile);
+			if (!fs.existsSync(depPath)) continue;
+			try {
+				const content = fs.readFileSync(depPath, "utf-8").toLowerCase();
+				if (content.includes("yamllint")) return true;
+			} catch {}
+		}
 	}
 
 	return false;
 }
 
 export function hasMarkdownlintConfig(cwd: string): boolean {
-	return MARKDOWNLINT_CONFIGS.some((cfg) => fs.existsSync(path.join(cwd, cfg)));
+	return walkUpDirs(cwd).some((dir) =>
+		MARKDOWNLINT_CONFIGS.some((cfg) => fs.existsSync(path.join(dir, cfg))),
+	);
 }
 
 export function hasPrettierConfig(cwd: string): boolean {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	for (const dir of walkUpDirs(cwd)) {
 		if (PRETTIER_CONFIGS.some((cfg) => fs.existsSync(path.join(dir, cfg))))
 			return true;
 		const pkgPath = path.join(dir, "package.json");
 		if (fs.existsSync(pkgPath)) {
 			try {
 				const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-				if (Object.prototype.hasOwnProperty.call(pkg, "prettier")) return true;
+				if (Object.hasOwn(pkg, "prettier")) return true;
 			} catch {}
 		}
 	}
@@ -1751,7 +1777,7 @@ export function hasPrettierConfig(cwd: string): boolean {
 }
 
 export function hasBlackConfig(cwd: string): boolean {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	for (const dir of walkUpDirs(cwd)) {
 		const pyproject = path.join(dir, "pyproject.toml");
 		if (fs.existsSync(pyproject)) {
 			try {
@@ -1761,21 +1787,22 @@ export function hasBlackConfig(cwd: string): boolean {
 		}
 	}
 
-	// Dependency file checks are cwd-only (weaker signal, avoid false positives up the tree)
-	for (const depFile of ["requirements.txt", "Pipfile"]) {
-		const depPath = path.join(cwd, depFile);
-		if (!fs.existsSync(depPath)) continue;
-		try {
-			if (fs.readFileSync(depPath, "utf-8").toLowerCase().includes("black"))
-				return true;
-		} catch {}
+	for (const dir of walkUpDirs(cwd)) {
+		for (const depFile of ["requirements.txt", "Pipfile"]) {
+			const depPath = path.join(dir, depFile);
+			if (!fs.existsSync(depPath)) continue;
+			try {
+				if (fs.readFileSync(depPath, "utf-8").toLowerCase().includes("black"))
+					return true;
+			} catch {}
+		}
 	}
 
 	return false;
 }
 
 export function hasRuffConfig(cwd: string): boolean {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	for (const dir of walkUpDirs(cwd)) {
 		for (const cfg of RUFF_PROJECT_CONFIGS) {
 			if (fs.existsSync(path.join(dir, cfg))) return true;
 		}
@@ -1791,60 +1818,77 @@ export function hasRuffConfig(cwd: string): boolean {
 }
 
 export function hasGolangciConfig(cwd: string): boolean {
-	return GOLANGCI_CONFIGS.some((cfg) => fs.existsSync(path.join(cwd, cfg)));
+	return walkUpDirs(cwd).some((dir) =>
+		GOLANGCI_CONFIGS.some((cfg) => fs.existsSync(path.join(dir, cfg))),
+	);
 }
 
 export function hasClangFormatConfig(cwd: string): boolean {
-	return [".clang-format", "_clang-format"].some((cfg) =>
-		fs.existsSync(path.join(cwd, cfg)),
+	return walkUpDirs(cwd).some((dir) =>
+		[".clang-format", "_clang-format"].some((cfg) =>
+			fs.existsSync(path.join(dir, cfg)),
+		),
 	);
 }
 
 export function hasPhpCsFixerConfig(cwd: string): boolean {
-	return [".php-cs-fixer.php", ".php-cs-fixer.dist.php"].some((cfg) =>
-		fs.existsSync(path.join(cwd, cfg)),
+	return walkUpDirs(cwd).some((dir) =>
+		[".php-cs-fixer.php", ".php-cs-fixer.dist.php"].some((cfg) =>
+			fs.existsSync(path.join(dir, cfg)),
+		),
 	);
 }
 
 export function hasStyluaConfig(cwd: string): boolean {
-	return ["stylua.toml", ".stylua.toml"].some((cfg) =>
-		fs.existsSync(path.join(cwd, cfg)),
+	return walkUpDirs(cwd).some((dir) =>
+		["stylua.toml", ".stylua.toml"].some((cfg) =>
+			fs.existsSync(path.join(dir, cfg)),
+		),
 	);
 }
 
 export function hasOcamlformatConfig(cwd: string): boolean {
-	return fs.existsSync(path.join(cwd, ".ocamlformat"));
+	return walkUpDirs(cwd).some((dir) =>
+		fs.existsSync(path.join(dir, ".ocamlformat")),
+	);
 }
 
 export function hasGoogleJavaFormatConfig(cwd: string): boolean {
 	// google-java-format has no standard config file — gate on .editorconfig
 	// with indent_size defined (common Java project signal) or explicit opt-in marker.
-	return (
-		fs.existsSync(path.join(cwd, ".google-java-format")) ||
-		fs.existsSync(path.join(cwd, ".editorconfig"))
+	return walkUpDirs(cwd).some(
+		(dir) =>
+			fs.existsSync(path.join(dir, ".google-java-format")) ||
+			fs.existsSync(path.join(dir, ".editorconfig")),
 	);
 }
 
 export function hasCljfmtConfig(cwd: string): boolean {
-	return [".cljfmt.edn", "cljfmt.edn", ".cljfmt"].some((cfg) =>
-		fs.existsSync(path.join(cwd, cfg)),
+	return walkUpDirs(cwd).some((dir) =>
+		[".cljfmt.edn", "cljfmt.edn", ".cljfmt"].some((cfg) =>
+			fs.existsSync(path.join(dir, cfg)),
+		),
 	);
 }
 
 export function hasCmakeFormatConfig(cwd: string): boolean {
-	return [
-		".cmake-format",
-		".cmake-format.yaml",
-		".cmake-format.yml",
-		".cmake-format.json",
-		".cmake-format.py",
-		"cmake-format.yaml",
-		"cmake-format.yml",
-	].some((cfg) => fs.existsSync(path.join(cwd, cfg)));
+	return walkUpDirs(cwd).some((dir) =>
+		[
+			".cmake-format",
+			".cmake-format.yaml",
+			".cmake-format.yml",
+			".cmake-format.json",
+			".cmake-format.py",
+			"cmake-format.yaml",
+			"cmake-format.yml",
+		].some((cfg) => fs.existsSync(path.join(dir, cfg))),
+	);
 }
 
 export function hasPhpstanConfig(cwd: string): boolean {
-	return PHPSTAN_CONFIGS.some((cfg) => fs.existsSync(path.join(cwd, cfg)));
+	return walkUpDirs(cwd).some((dir) =>
+		PHPSTAN_CONFIGS.some((cfg) => fs.existsSync(path.join(dir, cfg))),
+	);
 }
 
 const DETEKT_CONFIGS = [
@@ -1855,7 +1899,7 @@ const DETEKT_CONFIGS = [
 ];
 
 export function hasDetektConfig(cwd: string): boolean {
-	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
+	for (const dir of walkUpDirs(cwd)) {
 		if (DETEKT_CONFIGS.some((cfg) => fs.existsSync(path.join(dir, cfg))))
 			return true;
 	}
@@ -1863,11 +1907,13 @@ export function hasDetektConfig(cwd: string): boolean {
 }
 
 export function hasStandardrbConfig(cwd: string): boolean {
-	const gemfile = path.join(cwd, "Gemfile");
-	if (fs.existsSync(gemfile)) {
-		try {
-			return fs.readFileSync(gemfile, "utf-8").includes("standard");
-		} catch {}
+	for (const dir of walkUpDirs(cwd)) {
+		const gemfile = path.join(dir, "Gemfile");
+		if (fs.existsSync(gemfile)) {
+			try {
+				if (fs.readFileSync(gemfile, "utf-8").includes("standard")) return true;
+			} catch {}
+		}
 	}
 	return false;
 }

@@ -531,7 +531,11 @@ describe("getFormattersForFile — policy selection", () => {
 	});
 
 	it("does not activate ruff smart-default when black config is in a parent directory", async () => {
-		createTempFile(tmpDir, "pyproject.toml", "[tool.black]\nline-length = 88\n");
+		createTempFile(
+			tmpDir,
+			"pyproject.toml",
+			"[tool.black]\nline-length = 88\n",
+		);
 		const subDir = path.join(tmpDir, "src");
 		fs.mkdirSync(subDir, { recursive: true });
 		const filePath = fileIn(subDir, "main.py");
@@ -553,6 +557,105 @@ describe("getFormattersForFile — policy selection", () => {
 		const filePath = fileIn(subDir, "index.ts");
 		const formatters = await getFormattersForFile(filePath, subDir);
 		expect(formatters.map((f) => f.name)).toEqual(["prettier"]);
+	});
+
+	it("selects config-first formatters from ancestors above package.json boundaries", async () => {
+		const cases: Array<{
+			name: string;
+			ext: string;
+			configFile: string;
+			content: string;
+		}> = [
+			{
+				name: "sqlfluff",
+				ext: ".sql",
+				configFile: ".sqlfluff",
+				content: "[sqlfluff]\ndialect = postgres\n",
+			},
+			{
+				name: "clang-format",
+				ext: ".cpp",
+				configFile: ".clang-format",
+				content: "BasedOnStyle: LLVM\n",
+			},
+			{
+				name: "php-cs-fixer",
+				ext: ".php",
+				configFile: ".php-cs-fixer.dist.php",
+				content: "<?php return [];\n",
+			},
+			{
+				name: "stylua",
+				ext: ".lua",
+				configFile: "stylua.toml",
+				content: "column_width = 100\n",
+			},
+			{
+				name: "ocamlformat",
+				ext: ".ml",
+				configFile: ".ocamlformat",
+				content: "profile = conventional\n",
+			},
+			{
+				name: "google-java-format",
+				ext: ".java",
+				configFile: ".google-java-format",
+				content: "{}\n",
+			},
+			{
+				name: "cljfmt",
+				ext: ".clj",
+				configFile: ".cljfmt.edn",
+				content: "{}\n",
+			},
+			{
+				name: "cmake-format",
+				ext: ".cmake",
+				configFile: ".cmake-format",
+				content: "# cmake-format config\n",
+			},
+		];
+
+		for (const testCase of cases) {
+			const caseRoot = path.join(tmpDir, `case-${testCase.name}`);
+			const nestedDir = path.join(caseRoot, "packages", "ui", "src");
+			createTempFile(caseRoot, testCase.configFile, testCase.content);
+			createTempFile(
+				path.join(caseRoot, "packages", "ui"),
+				"package.json",
+				JSON.stringify({ name: "ui" }),
+			);
+			const filePath = path.join(nestedDir, `file${testCase.ext}`);
+			const formatters = await getFormattersForFile(filePath, nestedDir);
+			expect(
+				formatters.map((f) => f.name),
+				testCase.name,
+			).toEqual([testCase.name]);
+		}
+	});
+
+	it("keeps config-first formatters disabled without explicit config", async () => {
+		const cases: Array<[string, string]> = [
+			["config.json", ".json"],
+			["query.sql", ".sql"],
+			["main.cpp", ".cpp"],
+			["index.php", ".php"],
+			["init.lua", ".lua"],
+			["main.ml", ".ml"],
+			["Main.java", ".java"],
+			["core.clj", ".clj"],
+			["CMakeLists.cmake", ".cmake"],
+		];
+
+		for (const [fileName] of cases) {
+			const caseDir = path.join(tmpDir, `no-config-${fileName}`);
+			fs.mkdirSync(caseDir, { recursive: true });
+			const formatters = await getFormattersForFile(
+				path.join(caseDir, fileName),
+				caseDir,
+			);
+			expect(formatters, fileName).toEqual([]);
+		}
 	});
 
 	it("does not force google-java-format without config", async () => {
@@ -725,13 +828,54 @@ describe("oxfmt formatter — detection and policy selection", () => {
 
 	it("getFormattersForFile selects oxfmt for JS when oxfmt.toml is present", async () => {
 		createTempFile(tmpDir, "oxfmt.toml", "# oxfmt config\n");
-		const formatters = await getFormattersForFile(fileIn(tmpDir, "app.js"), tmpDir);
+		const formatters = await getFormattersForFile(
+			fileIn(tmpDir, "app.js"),
+			tmpDir,
+		);
 		expect(formatters.map((f) => f.name)).toEqual(["oxfmt"]);
+	});
+
+	it("selects oxfmt from repo root config across package.json boundaries", async () => {
+		createTempFile(tmpDir, ".oxfmtrc.json", "{}\n");
+		createTempFile(
+			tmpDir,
+			"package.json",
+			JSON.stringify({ devDependencies: { "@oxc-project/oxfmt": "^0.1.0" } }),
+		);
+		const subPkgDir = path.join(tmpDir, "shared", "foo");
+		createTempFile(subPkgDir, "package.json", JSON.stringify({ name: "foo" }));
+		const filePath = fileIn(path.join(subPkgDir, "src"), "bar.js");
+
+		const formatters = await getFormattersForFile(
+			filePath,
+			path.dirname(filePath),
+		);
+
+		expect(await oxfmtFormatter.detect(path.dirname(filePath))).toBe(true);
+		expect(formatters.map((f) => f.name)).toEqual(["oxfmt"]);
+	});
+
+	it("detects oxfmt dependency in an ancestor package.json", async () => {
+		createTempFile(
+			tmpDir,
+			"package.json",
+			JSON.stringify({ devDependencies: { "@oxc-project/oxfmt": "^0.1.0" } }),
+		);
+		const subPkgDir = path.join(tmpDir, "shared", "foo");
+		createTempFile(subPkgDir, "package.json", JSON.stringify({ name: "foo" }));
+
+		expect(await oxfmtFormatter.detect(path.join(subPkgDir, "src"))).toBe(true);
 	});
 
 	it("biome wins over oxfmt when both configs are present", async () => {
 		createTempFile(tmpDir, "oxfmt.toml", "# oxfmt config\n");
-		createTempFile(tmpDir, "biome.json", JSON.stringify({ $schema: "https://biomejs.dev/schemas/1.0.0/schema.json" }));
+		createTempFile(
+			tmpDir,
+			"biome.json",
+			JSON.stringify({
+				$schema: "https://biomejs.dev/schemas/1.0.0/schema.json",
+			}),
+		);
 		const filePath = fileIn(tmpDir, "index.ts");
 		const formatters = await getFormattersForFile(filePath, tmpDir);
 		expect(formatters.map((f) => f.name)).toEqual(["biome"]);

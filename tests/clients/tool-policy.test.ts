@@ -19,14 +19,18 @@ import {
 	hasBiomeConfig,
 	hasBlackConfig,
 	hasClangFormatConfig,
+	hasCljfmtConfig,
+	hasCmakeFormatConfig,
 	hasDetektConfig,
 	hasEslintConfig,
 	hasGolangciConfig,
+	hasGoogleJavaFormatConfig,
 	hasMarkdownlintConfig,
 	hasMypyConfig,
 	hasNearestPackageJsonDependency,
 	hasNearestPackageJsonField,
 	hasOcamlformatConfig,
+	hasOxfmtConfig,
 	hasOxlintConfig,
 	hasPhpCsFixerConfig,
 	hasPhpstanConfig,
@@ -373,6 +377,142 @@ describe("tool-policy", () => {
 			expect(hasStyluaConfig(env.tmpDir)).toBe(true);
 			expect(hasOcamlformatConfig(env.tmpDir)).toBe(true);
 			expect(getBiomeConfigPath(env.tmpDir)).toMatch(/biome\.jsonc$/);
+		} finally {
+			env.cleanup();
+		}
+	});
+
+	it("formatter config detectors walk past package.json boundaries consistently", () => {
+		const env = setupTestEnvironment("pi-lens-tool-policy-fmt-config-walkup-");
+		try {
+			const nestedDir = path.join(env.tmpDir, "packages", "ui", "src");
+			createTempFile(
+				path.dirname(nestedDir),
+				"package.json",
+				JSON.stringify({ name: "ui" }),
+			);
+			fs.mkdirSync(nestedDir, { recursive: true });
+
+			const cases: Array<[string, string, string, () => boolean]> = [
+				["biome", "biome.json", "{}\n", () => hasBiomeConfig(nestedDir)],
+				["oxfmt", ".oxfmtrc.json", "{}\n", () => hasOxfmtConfig(nestedDir)],
+				["prettier", ".prettierrc", "{}\n", () => hasPrettierConfig(nestedDir)],
+				[
+					"stylelint",
+					".stylelintrc",
+					"{}\n",
+					() => hasStylelintConfig(nestedDir),
+				],
+				[
+					"black",
+					"pyproject.toml",
+					"[tool.black]\nline-length = 88\n",
+					() => hasBlackConfig(nestedDir),
+				],
+				[
+					"ruff",
+					"ruff.toml",
+					"line-length = 100\n",
+					() => hasRuffConfig(nestedDir),
+				],
+				[
+					"mypy",
+					"mypy.ini",
+					"[mypy]\nstrict = true\n",
+					() => hasMypyConfig(nestedDir),
+				],
+				[
+					"sqlfluff",
+					".sqlfluff",
+					"[sqlfluff]\ndialect = ansi\n",
+					() => hasSqlfluffConfig(nestedDir),
+				],
+				[
+					"yamllint",
+					".yamllint",
+					"extends: default\n",
+					() => hasYamllintConfig(nestedDir),
+				],
+				[
+					"markdownlint",
+					".markdownlint.json",
+					"{}\n",
+					() => hasMarkdownlintConfig(nestedDir),
+				],
+				[
+					"rubocop",
+					".rubocop.yml",
+					"AllCops: {}\n",
+					() => hasRubocopConfig(nestedDir),
+				],
+				[
+					"standardrb",
+					"Gemfile",
+					"gem 'standard'\n",
+					() => hasStandardrbConfig(nestedDir),
+				],
+				[
+					"golangci",
+					".golangci.yml",
+					"run:\n  timeout: 1m\n",
+					() => hasGolangciConfig(nestedDir),
+				],
+				[
+					"phpstan",
+					"phpstan.neon",
+					"parameters:\n  level: 5\n",
+					() => hasPhpstanConfig(nestedDir),
+				],
+				[
+					"detekt",
+					"detekt.yml",
+					"build:\n  maxIssues: 0\n",
+					() => hasDetektConfig(nestedDir),
+				],
+				[
+					"clang-format",
+					".clang-format",
+					"BasedOnStyle: LLVM\n",
+					() => hasClangFormatConfig(nestedDir),
+				],
+				[
+					"php-cs-fixer",
+					".php-cs-fixer.dist.php",
+					"<?php return [];\n",
+					() => hasPhpCsFixerConfig(nestedDir),
+				],
+				[
+					"stylua",
+					"stylua.toml",
+					"column_width = 100\n",
+					() => hasStyluaConfig(nestedDir),
+				],
+				[
+					"ocamlformat",
+					".ocamlformat",
+					"profile = conventional\n",
+					() => hasOcamlformatConfig(nestedDir),
+				],
+				[
+					"google-java-format",
+					".google-java-format",
+					"{}\n",
+					() => hasGoogleJavaFormatConfig(nestedDir),
+				],
+				["cljfmt", ".cljfmt.edn", "{}\n", () => hasCljfmtConfig(nestedDir)],
+				[
+					"cmake-format",
+					".cmake-format",
+					"# cmake-format config\n",
+					() => hasCmakeFormatConfig(nestedDir),
+				],
+			];
+
+			for (const [name, configFile, content, detector] of cases) {
+				createTempFile(env.tmpDir, configFile, content);
+				expect(detector(), name).toBe(true);
+				fs.rmSync(path.join(env.tmpDir, configFile));
+			}
 		} finally {
 			env.cleanup();
 		}
