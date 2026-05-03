@@ -4,6 +4,10 @@ All notable changes to pi-lens will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Experimental terminal dashboard** — `--lens-dashboard` / `PI_LENS_DASHBOARD=1` now streams redacted session telemetry to `~/.pi-lens/dashboard-events.jsonl` and opens a separate terminal dashboard. The dashboard shows active tools, formatter config selections, formatters/linters run during the session, LSP servers spawned, and diagnostics grouped by touched file with OSC-8 clickable file links. Use `PI_LENS_DASHBOARD_LOG_ONLY=1` to emit JSONL without opening a terminal.
+
 ## [3.8.40] - 2026-05-04
 
 ### Added
