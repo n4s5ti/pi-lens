@@ -1344,7 +1344,7 @@ async function installGitHubTool(
 			const srcBinary = path.join(tmpDir, spec.binaryInArchive ?? binaryName);
 			await fs.rename(srcBinary, destPath);
 			await fs.rm(tmpDir, { recursive: true, force: true });
-			if (!isWindows) await fs.chmod(destPath, 0o755);
+			if (!isWindows) await fs.chmod(destPath, 0o750);
 		} else if (assetName.endsWith(".zip")) {
 			// Write zip to temp, extract with unzip (Linux/macOS) or Expand-Archive (Windows)
 			const tmpArchive = path.join(GITHUB_BIN_DIR, `_tmp_${assetName}`);
@@ -1395,7 +1395,7 @@ async function installGitHubTool(
 			}
 			await fs.rename(srcBinary, destPath);
 			await fs.rm(tmpDir, { recursive: true, force: true });
-			if (!isWindows) await fs.chmod(destPath, 0o755);
+			if (!isWindows) await fs.chmod(destPath, 0o750);
 		} else {
 			// Bare binary (e.g. shfmt_*_linux_amd64)
 			await fs.writeFile(destPath, assetBuffer, { mode: 0o755 });
@@ -1538,7 +1538,7 @@ async function installNpmTool(
 		// Make executable on Unix
 		if (process.platform !== "win32") {
 			try {
-				await fs.chmod(binPath, 0o755);
+				await fs.chmod(binPath, 0o750);
 			} catch {
 				/* ignore */
 			}
