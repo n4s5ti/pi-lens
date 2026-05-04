@@ -59,6 +59,7 @@ import {
 	handleToolResult,
 } from "./clients/runtime-tool-result.js";
 import { cancelLSPIdleReset, handleTurnEnd } from "./clients/runtime-turn.js";
+import { isExternalOrVendorFile } from "./clients/path-utils.js";
 import { TreeSitterClient } from "./clients/tree-sitter-client.js";
 import { handleBooboo } from "./commands/booboo.js";
 import { initI18n, t } from "./i18n.js";
@@ -212,12 +213,13 @@ function isLspCapableFile(filePath: string): boolean {
 	return LANGUAGE_POLICY[kind]?.lspCapable !== false;
 }
 
-function shouldSkipLspAutoTouch(filePath: string): boolean {
+function shouldSkipLspAutoTouch(filePath: string, projectRoot: string): boolean {
 	const normalized = path.resolve(filePath).replace(/\\/g, "/").toLowerCase();
 	const base = path.basename(filePath).toLowerCase();
 
 	if (normalized.includes("/.pi-lens/")) return true;
 	if (normalized.includes("/.harness/")) return true;
+	if (isExternalOrVendorFile(filePath, projectRoot)) return true;
 	if (
 		base === "stdout.jsonl" ||
 		base === "stderr.txt" ||
@@ -862,8 +864,16 @@ export default function (pi: ExtensionAPI) {
 		);
 		if (!nodeFs.existsSync(filePath)) return;
 
+		const isExternalOrVendor = isExternalOrVendorFile(
+			filePath,
+			runtime.projectRoot,
+		);
+
 		const lspCapableFile = isLspCapableFile(filePath);
-		const lspAutoTouchSkipped = shouldSkipLspAutoTouch(filePath);
+		const lspAutoTouchSkipped = shouldSkipLspAutoTouch(
+			filePath,
+			runtime.projectRoot,
+		);
 		const lspAutoTouchEligible = lspCapableFile && !lspAutoTouchSkipped;
 		const shouldWarmReadLsp =
 			toolName === "read" &&
@@ -957,6 +967,7 @@ export default function (pi: ExtensionAPI) {
 		if (
 			toolName === "read" &&
 			!pi.getFlag("no-lsp") &&
+			!isExternalOrVendor &&
 			filePath &&
 			readInput &&
 			requestedReadLimit != null &&
@@ -1011,7 +1022,7 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		// --- Read-Before-Edit Guard: record reads ---
-		if (toolName === "read" && filePath) {
+		if (toolName === "read" && filePath && !isExternalOrVendor) {
 			const totalLines = countFileLines(filePath);
 			const deliveredLimit = effectiveReadLimit ?? 1;
 			logReadGuardEvent({
@@ -1052,6 +1063,7 @@ export default function (pi: ExtensionAPI) {
 		// Record complexity baseline for historical tracking (booboo/tdi).
 		// Not shown inline - just captured for delta analysis.
 		if (
+			!isExternalOrVendor &&
 			complexityClient.isSupportedFile(filePath) &&
 			!runtime.complexityBaselines.has(filePath)
 		) {

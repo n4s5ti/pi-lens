@@ -151,3 +151,20 @@ export function isUnderDir(child: string, parent: string): boolean {
 	const parentPrefix = normParent.endsWith("/") ? normParent : `${normParent}/`;
 	return normChild === normParent || normChild.startsWith(parentPrefix);
 }
+
+/**
+ * Returns true when a file should be treated as external/vendor and excluded
+ * from pipelines (LSP, diagnostics, complexity, read-guard, etc.).
+ *
+ * Two cases:
+ *   1. Outside the project root entirely (e.g. global npm packages, system files)
+ *   2. Inside the project but under node_modules (local deps, never user-editable)
+ */
+export function isExternalOrVendorFile(
+	filePath: string,
+	projectRoot: string,
+): boolean {
+	if (!isUnderDir(filePath, projectRoot)) return true;
+	const normalized = normalizeFilePath(filePath);
+	return normalized.includes("/node_modules/");
+}

@@ -6,6 +6,7 @@ import type { CacheManager } from "./cache-manager.js";
 import { createFileTime } from "./file-time.js";
 import type { ReadGuard } from "./read-guard.js";
 import { getFormatService } from "./format-service.js";
+import { isExternalOrVendorFile } from "./path-utils.js";
 import { resolveLanguageRootForFile } from "./language-profile.js";
 import { logLatency } from "./latency-logger.js";
 import type { MetricsClient } from "./metrics-client.js";
@@ -132,6 +133,12 @@ export async function handleToolResult(deps: ToolResultDeps): Promise<{
 	if (!filePath) {
 		dbg(
 			`tool_result: skipped turn tracking - no filePath for toolName="${event.toolName}"`,
+		);
+		return;
+	}
+	if (isExternalOrVendorFile(filePath, workspaceRoot)) {
+		dbg(
+			`tool_result: skipped pipeline - file outside project root or in node_modules: ${filePath}`,
 		);
 		return;
 	}
