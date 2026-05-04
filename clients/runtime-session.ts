@@ -16,10 +16,7 @@ import {
 	getDefaultStartupTools,
 } from "./language-profile.js";
 import { runLogCleanup } from "./log-cleanup.js";
-import {
-	emitDashboardSessionSummary,
-	runDashboardLogCleanup,
-} from "./dashboard-bus.js";
+import { setSessionLanguages } from "./widget-state.js";
 import { initLSPConfig, loadLSPConfig } from "./lsp/config.js";
 import { getLSPService } from "./lsp/index.js";
 import type { MetricsClient } from "./metrics-client.js";
@@ -455,8 +452,6 @@ export async function handleSessionStart(
 	if (logCleanup.cleaned > 0 || logCleanup.rotated > 0) {
 		notify(`🧹 ${logCleanup.report}`, "info");
 	}
-	// Clean up old per-session dashboard event files
-	runDashboardLogCleanup(dbg);
 	dbg(`session_start startup mode: ${startupMode}`);
 
 	if (!getFlag("no-lsp")) {
@@ -488,13 +483,11 @@ export async function handleSessionStart(
 		return;
 	}
 
-	let staleTSCleanedCount = 0;
 	const tools: string[] = [];
 	if (!getFlag("no-lsp")) tools.push("LSP Service");
 
 	if (allowBootstrapTasks && !getFlag("no-lsp")) {
 		const cleaned = cleanStaleTsBuildInfo(ctxCwd ?? process.cwd());
-		staleTSCleanedCount = cleaned.length;
 		if (cleaned.length > 0) {
 			notify(
 				`🧹 Deleted stale TypeScript build cache (${cleaned.map((f) => path.basename(f)).join(", ")}) — phantom errors suppressed.`,
@@ -624,11 +617,9 @@ export async function handleSessionStart(
 	// LSP warm files — read config synchronously on the startup path (cheap file
 	// walk), then fire-and-forget the LSP touchFile loop so session start is not
 	// blocked by per-file LSP waits.
-	let lspWarmFileCount = 0;
 	if (!getFlag("no-lsp") && allowBootstrapTasks) {
 		const lspConfig = await loadLSPConfig(cwd);
 		const warmFiles = lspConfig.warmFiles ?? [];
-		lspWarmFileCount = warmFiles.length;
 		if (warmFiles.length > 0) {
 			igniteWarmFiles(cwd, warmFiles, runtime, sessionGeneration, dbg).catch(
 				(err) => dbg(`session_start lsp-warm: unhandled error: ${err}`),
@@ -636,38 +627,7 @@ export async function handleSessionStart(
 		}
 	}
 
-	// Emit session summary to dashboard bus (handles disabled gracefully)
-	emitDashboardSessionSummary({
-		startupMode,
-		projectRoot: cwd,
-		scanRoot,
-		sourceFileCount: startupScan.sourceFileCount,
-		monorepoOverride: useScanRootForSignals && analysisRoot !== cwd,
-		languages: languageProfile.detectedKinds.map((kind) => ({
-			kind,
-			configured: !!languageProfile.configured[kind],
-			count: languageProfile.counts[kind] ?? 0,
-		})),
-		startupTools: startupDefaults.map((name) => ({
-			name,
-			autoInstall: allowBootstrapTasks,
-		})),
-		lspWarmFiles: lspWarmFileCount,
-		testRunner: detectedRunner?.runner,
-		goAvailable: goClient.isGoAvailable(),
-		rustAvailable: rustClient.isAvailable(),
-		prettierDetected: allowBootstrapTasks,
-		staleTSCleaned: staleTSCleanedCount,
-		startupScans: startupScansWillRun
-			? [
-					"TODO",
-					...(jstsHeavyScansWillRun
-						? ["knip", "jscpd", "ast-grep exports", "project index"]
-						: []),
-				]
-			: [],
-		lspEnabled: lensLspEnabled,
-	});
+	setSessionLanguages(languageProfile.detectedKinds);
 
 	dbg(
 		`session_start total: ${Date.now() - sessionStartMs}ms (interactive path; background tasks may continue)`,

@@ -11,7 +11,6 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { emitDashboardFormatterSelected } from "./dashboard-bus.js";
 import { logLatency } from "./latency-logger.js";
 import { safeSpawn } from "./safe-spawn.js";
 import {
@@ -950,12 +949,6 @@ export async function getFormattersForFile(
 			reason: selectionReason,
 			cwd,
 		},
-	});
-	emitDashboardFormatterSelected({
-		filePath,
-		cwd,
-		formatter: selected?.name ?? null,
-		reason: selectionReason,
 	});
 
 	// Store the list of enabled formatter names in cache

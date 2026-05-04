@@ -16,7 +16,7 @@
 
 import * as path from "node:path";
 import type { FileKind } from "../file-kinds.js";
-import { emitDashboardRunnerRun } from "../dashboard-bus.js";
+import { recordRunner } from "../widget-state.js";
 import { detectFileKind } from "../file-kinds.js";
 import { isTestFile } from "../file-utils.js";
 import { getPrimaryDispatchGroup } from "../language-policy.js";
@@ -598,14 +598,13 @@ async function runGroup(
 			diagnosticCount: result.diagnostics.length,
 			semantic: result.semantic ?? semantic,
 		});
-		emitDashboardRunnerRun({
-			filePath: ctx.filePath,
+		recordRunner(
+			ctx.filePath,
 			runnerId,
-			status: result.status,
-			diagnosticCount: result.diagnostics.length,
-			durationMs: duration,
-			semantic: result.semantic ?? semantic,
-		});
+			result.status,
+			result.diagnostics.length,
+			duration,
+		);
 
 		diagnostics.push(...result.diagnostics);
 
