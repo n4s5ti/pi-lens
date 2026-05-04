@@ -57,6 +57,15 @@ import {
 } from "./clients/runtime-tool-result.js";
 import { cancelLSPIdleReset, handleTurnEnd } from "./clients/runtime-turn.js";
 import { isExternalOrVendorFile } from "./clients/path-utils.js";
+import { safeSpawnAsync } from "./clients/safe-spawn.js";
+import {
+	createStarterSemgrepConfig,
+	findLocalSemgrepConfig,
+	loadPiLensSemgrepConfig,
+	removePiLensSemgrepConfig,
+	resolveSemgrepConfig,
+	savePiLensSemgrepConfig,
+} from "./clients/semgrep-config.js";
 import { TreeSitterClient } from "./clients/tree-sitter-client.js";
 import { handleBooboo } from "./commands/booboo.js";
 import { initI18n, t } from "./i18n.js";
@@ -210,7 +219,10 @@ function isLspCapableFile(filePath: string): boolean {
 	return LANGUAGE_POLICY[kind]?.lspCapable !== false;
 }
 
-function shouldSkipLspAutoTouch(filePath: string, projectRoot: string): boolean {
+function shouldSkipLspAutoTouch(
+	filePath: string,
+	projectRoot: string,
+): boolean {
 	const normalized = path.resolve(filePath).replace(/\\/g, "/").toLowerCase();
 	const base = path.basename(filePath).toLowerCase();
 
@@ -351,14 +363,131 @@ export default function (pi: ExtensionAPI) {
 		default: false,
 	});
 
+	pi.registerFlag("lens-semgrep", {
+		description:
+			"Enable Semgrep dispatch when a Semgrep config is available (or with --lens-semgrep-config)",
+		type: "boolean",
+		default: false,
+	});
+
+	pi.registerFlag("lens-semgrep-config", {
+		description:
+			"Semgrep config for dispatch: local path, auto, p/<pack>, or r/<rule>. Requires --lens-semgrep.",
+		type: "string",
+		default: "",
+	});
+
 	pi.registerFlag("no-read-guard", {
 		description: "Disable read-before-edit behavior monitor",
 		type: "boolean",
 		default: false,
 	});
 
-
 	// --- Commands ---
+
+	pi.registerCommand("lens-semgrep", {
+		description:
+			"Manage Semgrep dispatch. Usage: /lens-semgrep status | enable [--config <auto|p/pack|path>] | disable | init",
+		handler: async (args, ctx) => {
+			const parts = normalizeCommandArgs(args);
+			const action = parts[0] ?? "status";
+			const cwd = ctx.cwd ?? runtime.projectRoot;
+
+			function readConfigArg(): string | undefined {
+				const flagIndex = parts.findIndex(
+					(part) => part === "--config" || part === "-c",
+				);
+				if (flagIndex >= 0) return parts[flagIndex + 1];
+				return parts[1] && !parts[1].startsWith("-") ? parts[1] : undefined;
+			}
+
+			if (action === "enable") {
+				const config = readConfigArg();
+				const localConfig = findLocalSemgrepConfig(cwd);
+				if (!config && !localConfig) {
+					ctx.ui.notify(
+						[
+							"Semgrep dispatch not enabled yet: no local .semgrep.yml was found.",
+							"Use `/lens-semgrep init` to create a starter local config, or `/lens-semgrep enable --config auto` / `p/<pack>` if you want Semgrep registry/platform configuration.",
+							"pi-lens will not auto-install Semgrep; install it with pipx/uv/brew first and login only if your chosen Semgrep config requires it.",
+						].join("\n"),
+						"warning",
+					);
+					return;
+				}
+
+				const savedPath = savePiLensSemgrepConfig(cwd, {
+					enabled: true,
+					...(config ? { config } : {}),
+				});
+				ctx.ui.notify(
+					`Semgrep dispatch enabled (${config ? `config: ${config}` : `local config: ${localConfig}`}). Saved ${savedPath}`,
+					"info",
+				);
+				return;
+			}
+
+			if (action === "disable") {
+				const savedPath = savePiLensSemgrepConfig(cwd, { enabled: false });
+				ctx.ui.notify(`Semgrep dispatch disabled. Saved ${savedPath}`, "info");
+				return;
+			}
+
+			if (action === "clear") {
+				const removed = removePiLensSemgrepConfig(cwd);
+				ctx.ui.notify(
+					removed
+						? "Removed .pi-lens/semgrep.json; Semgrep now auto-enables only when local .semgrep.yml exists."
+						: "No .pi-lens/semgrep.json found.",
+					"info",
+				);
+				return;
+			}
+
+			if (action === "init") {
+				const configPath = createStarterSemgrepConfig(cwd);
+				const savedPath = savePiLensSemgrepConfig(cwd, { enabled: true });
+				ctx.ui.notify(
+					`Created starter Semgrep config at ${configPath} and enabled Semgrep dispatch (${savedPath}).`,
+					"info",
+				);
+				return;
+			}
+
+			if (action !== "status") {
+				ctx.ui.notify(
+					"Usage: /lens-semgrep status | enable [--config <auto|p/pack|path>] | disable | clear | init",
+					"warning",
+				);
+				return;
+			}
+
+			const localConfig = findLocalSemgrepConfig(cwd);
+			const piLensConfig = loadPiLensSemgrepConfig(cwd);
+			const resolved = resolveSemgrepConfig(cwd, {
+				enabled: Boolean(pi.getFlag("lens-semgrep")),
+				config: pi.getFlag("lens-semgrep-config"),
+			});
+			const version = await safeSpawnAsync("semgrep", ["--version"], {
+				cwd,
+				timeout: 5000,
+			});
+			const lines = [
+				"🔎 SEMGREP DISPATCH",
+				`CLI: ${!version.error && version.status === 0 ? `installed (${(version.stdout || version.stderr).trim()})` : "not found on PATH"}`,
+				`Local config: ${localConfig ?? "none"}`,
+				`pi-lens config: ${piLensConfig ? JSON.stringify(piLensConfig) : "none"}`,
+				`Effective: ${resolved.enabled ? "enabled" : "disabled"}`,
+				`Config arg: ${resolved.configArg ?? "none"}`,
+			];
+			if (resolved.reason) lines.push(`Reason: ${resolved.reason}`);
+			lines.push(
+				"",
+				"No auto-install. Token/login is only needed for Semgrep AppSec/Pro/managed configs; local .semgrep.yml scans do not require a token.",
+			);
+			ctx.ui.notify(lines.join("\n"), resolved.enabled ? "info" : "warning");
+		},
+	});
 
 	pi.registerCommand("lens-booboo", {
 		description:

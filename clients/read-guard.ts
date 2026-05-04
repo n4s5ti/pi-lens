@@ -43,6 +43,7 @@ export interface EditRecord {
 	precedingReads: ReadRecord[];
 	verdict: "allowed" | "blocked" | "warned";
 	reason?: string;
+	timestamp: number;
 }
 
 export interface ReadGuardVerdict {
@@ -77,6 +78,14 @@ const DEFAULT_CONFIG: ReadGuardConfig = {
 		{ pattern: "*.log", mode: "allow" },
 	],
 };
+
+const OWN_EDIT_STALE_GRACE_MS = Math.max(
+	0,
+	Number.parseInt(
+		process.env.PI_LENS_READ_GUARD_OWN_EDIT_GRACE_MS ?? "120000",
+		10,
+	) || 120000,
+);
 
 // --- ReadGuard Class ---
 
@@ -173,17 +182,22 @@ export class ReadGuard {
 		}
 
 		// 2. FileTime check (actual staleness)
+		let ignoredOwnEditStaleness = false;
 		if (this.fileTime.hasChanged(filePath)) {
 			const lastRead = fileReads[fileReads.length - 1];
-			const verdict = this.blockOrWarn(
-				"file-modified",
-				`🔴 BLOCKED — File modified since read\n\nYou last read \`${filePath}\` at ${new Date(lastRead.timestamp).toISOString()}.\nThe file has been modified on disk since then (auto-format, external tool, or previous edit).\n\nYour mental model is out of sync with the actual file content.\nTo proceed:\n  1. Re-read the file: \`read path="${filePath}"\``,
-			);
-			this.recordVerdict(filePath, "edit", touchedLines, verdict, {
-				reasonKind: "file_modified",
-				lastReadTimestamp: lastRead.timestamp,
-			});
-			return verdict;
+			if (this.canTreatStalenessAsOwnPriorEdit(filePath, lastRead.timestamp)) {
+				ignoredOwnEditStaleness = true;
+			} else {
+				const verdict = this.blockOrWarn(
+					"file-modified",
+					`🔴 BLOCKED — File modified since read\n\nYou last read \`${filePath}\` at ${new Date(lastRead.timestamp).toISOString()}.\nThe file has been modified on disk since then (auto-format, external tool, or previous edit).\n\nYour mental model is out of sync with the actual file content.\nTo proceed:\n  1. Re-read the file: \`read path="${filePath}"\``,
+				);
+				this.recordVerdict(filePath, "edit", touchedLines, verdict, {
+					reasonKind: "file_modified",
+					lastReadTimestamp: lastRead.timestamp,
+				});
+				return verdict;
+			}
 		}
 
 		// If no line range specified, we can only check zero-read and FileTime
@@ -240,6 +254,7 @@ export class ReadGuard {
 		this.recordVerdict(filePath, "edit", touchedLines, verdict, {
 			reasonKind: viaSymbol ? "symbol_coverage" : "range_coverage",
 			viaSymbol,
+			ignoredOwnEditStaleness,
 		});
 		return verdict;
 	}
@@ -346,6 +361,19 @@ export class ReadGuard {
 	}
 
 	// --- Private helpers ---
+
+	private canTreatStalenessAsOwnPriorEdit(
+		filePath: string,
+		lastReadTimestamp: number,
+	): boolean {
+		const edits = this.edits.get(filePath) ?? [];
+		const latest = edits.at(-1);
+		if (!latest) return false;
+		if (latest.verdict !== "allowed" && latest.verdict !== "warned")
+			return false;
+		if (latest.timestamp < lastReadTimestamp) return false;
+		return Date.now() - latest.timestamp <= OWN_EDIT_STALE_GRACE_MS;
+	}
 
 	private checkCoverage(
 		filePath: string,
@@ -473,6 +501,7 @@ export class ReadGuard {
 			precedingReads: this.reads.get(filePath) ?? [],
 			verdict: mapVerdictAction(verdict.action),
 			reason: verdict.reason,
+			timestamp: Date.now(),
 		});
 		this.edits.set(filePath, arr);
 	}

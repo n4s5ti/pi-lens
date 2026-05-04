@@ -390,6 +390,7 @@ function buildCoverageNotice(
 		"similarity",
 		"spellcheck",
 		"fact-rules",
+		"semgrep",
 	]);
 	const anyLinterHasCoverage = runnerLatencies.some(
 		(r) =>

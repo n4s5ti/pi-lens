@@ -25,6 +25,41 @@ function primary(kind: FileKind): RunnerGroup {
 	return group;
 }
 
+const SEMGREP_SUPPORTED_KINDS = new Set<FileKind>([
+	"csharp",
+	"css",
+	"cxx",
+	"dart",
+	"docker",
+	"go",
+	"html",
+	"java",
+	"json",
+	"jsts",
+	"kotlin",
+	"lua",
+	"php",
+	"python",
+	"ruby",
+	"rust",
+	"shell",
+	"swift",
+	"terraform",
+	"yaml",
+]);
+
+function semgrepGroups(kind: FileKind): RunnerGroup[] {
+	if (!SEMGREP_SUPPORTED_KINDS.has(kind)) return [];
+	return [
+		{
+			mode: "all",
+			runnerIds: ["semgrep"],
+			filterKinds: [kind],
+			semantic: "warning",
+		},
+	];
+}
+
 export const LANGUAGE_CAPABILITY_MATRIX: Record<
 	FileKind,
 	CapabilityMatrixEntry
@@ -242,10 +277,10 @@ export const LANGUAGE_CAPABILITY_MATRIX: Record<
 	},
 };
 
-function toWritePlan(entry: CapabilityMatrixEntry): ToolPlan {
+function toWritePlan(kind: FileKind, entry: CapabilityMatrixEntry): ToolPlan {
 	return {
 		name: entry.name,
-		groups: [...entry.writeGroups],
+		groups: [...entry.writeGroups, ...semgrepGroups(kind)],
 	};
 }
 
@@ -265,6 +300,7 @@ function toFullPlan(kind: FileKind, entry: CapabilityMatrixEntry): ToolPlan {
 					runnerIds: ["eslint", "oxlint", "biome-check-json"],
 					filterKinds: ["jsts"],
 				},
+				...semgrepGroups(kind),
 			],
 		};
 	}
@@ -278,20 +314,25 @@ function toFullPlan(kind: FileKind, entry: CapabilityMatrixEntry): ToolPlan {
 				{ mode: "fallback", runnerIds: ["ruff-lint"], filterKinds: ["python"] },
 				{ mode: "all", runnerIds: ["tree-sitter"], filterKinds: ["python"] },
 				...(entry.fullOnlyGroups ?? []),
+				...semgrepGroups(kind),
 			],
 		};
 	}
 
 	return {
 		name: entry.name,
-		groups: [...entry.writeGroups, ...(entry.fullOnlyGroups ?? [])],
+		groups: [
+			...entry.writeGroups,
+			...(entry.fullOnlyGroups ?? []),
+			...semgrepGroups(kind),
+		],
 	};
 }
 
 export const TOOL_PLANS: Record<string, ToolPlan> = Object.fromEntries(
 	Object.entries(LANGUAGE_CAPABILITY_MATRIX).map(([kind, entry]) => [
 		kind,
-		toWritePlan(entry),
+		toWritePlan(kind as FileKind, entry),
 	]),
 ) as Record<string, ToolPlan>;
 

@@ -84,6 +84,9 @@ export async function handleAgentEnd({
 
 			if (result.formatChanged) {
 				summary.changed.push(filePath);
+				if (!getFlag("no-read-guard")) {
+					runtime.readGuard.recordWritten(filePath);
+				}
 				try {
 					const content = nodeFs.readFileSync(filePath, "utf-8");
 					const lineCount = content.split("\n").length;

@@ -337,6 +337,23 @@ export async function handleToolResult(deps: ToolResultDeps): Promise<{
 		stateHash: getFileStateHash(filePath),
 	});
 
+	// The model's write/edit and pi-lens' own immediate format/autofix are now
+	// reflected on disk. Refresh read-guard staleness stamps so a follow-up edit
+	// is judged by read-range coverage, not by our own previous write.
+	if (!getFlag("no-read-guard")) {
+		const changedForReadGuard = new Set([
+			path.resolve(filePath),
+			...(result.changedFiles ?? []).map((changedFile) =>
+				path.resolve(changedFile),
+			),
+		]);
+		for (const changedFile of changedForReadGuard) {
+			if (nodeFs.existsSync(changedFile)) {
+				deps.readGuard?.recordWritten(changedFile);
+			}
+		}
+	}
+
 	if (
 		!result.isError &&
 		!getFlag("no-autoformat") &&

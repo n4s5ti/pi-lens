@@ -16,7 +16,7 @@ On every `write` and `edit`, pi-lens runs a fast, language-aware pipeline (check
 2. **Auto-format** — deferred to `agent_end` by default; queued files are formatted once after all agent tool calls complete. Use `--immediate-format` for per-edit formatting
 3. **Auto-fix** — safe autofixes from 6 tools (Biome `check --write`, Ruff `check --fix`, ESLint `--fix`, stylelint `--fix`, sqlfluff `fix`, RuboCop `-a`) applied before analysis
 4. **LSP file sync** — opens/updates the file in active language servers
-5. **Dispatch lint** — parallel runner groups: LSP diagnostics, tree-sitter structural rules, ast-grep security/correctness rules, fact rules, language-specific linters, similarity detection
+5. **Dispatch lint** — parallel runner groups: LSP diagnostics, tree-sitter structural rules, ast-grep security/correctness rules, fact rules, language-specific linters, experimental Semgrep security scans, similarity detection
 6. **Cascade diagnostics** — review-graph impact cascade showing which other files were affected and how diagnostics propagated
 
 Results are inline and actionable:
@@ -153,6 +153,36 @@ Structural rules are organized by language in `rules/tree-sitter-queries/`:
 - **Style/smells** — nested-ternary, long-parameter-list, large-class, prefer-optional-chain, redundant-state, require-await
 - **Agent stubs** — no-unimplemented-stub, no-raise-not-implemented, no-ellipsis-body
 
+### Semgrep CLI Integration (Experimental)
+
+pi-lens can run the locally installed `semgrep` CLI as an optional dispatch runner for security-focused findings. Semgrep diagnostics are normalized into the same pi-lens `Diagnostic` model as LSP, tree-sitter, ast-grep, and linters: high-signal security findings can become blocking, while other findings remain warnings for `/lens-booboo`/history.
+
+Activation is intentionally gated:
+
+- pi-lens **does not auto-install Semgrep**.
+- A local `.semgrep.yml`, `.semgrep.yaml`, `semgrep.yml`, or `semgrep.yaml` enables the runner when the `semgrep` CLI is available.
+- Without a local config, Semgrep stays skipped unless explicitly configured with `--lens-semgrep --lens-semgrep-config <auto|p/pack|path>` or `/lens-semgrep enable --config <auto|p/pack|path>`.
+- Local `.semgrep.yml` scans do not require a Semgrep token. Semgrep AppSec/Pro/managed configurations may require `semgrep login` or `SEMGREP_APP_TOKEN`.
+- pi-lens passes `--metrics=off` for dispatch scans.
+
+Commands:
+
+- `/lens-semgrep status` — show CLI availability, discovered local config, persisted pi-lens config, and effective dispatch state
+- `/lens-semgrep init` — create a starter `.semgrep.yml` with a blocking `eval(...)` rule and enable Semgrep dispatch
+- `/lens-semgrep enable [--config <auto|p/pack|path>]` — persist Semgrep dispatch activation in `.pi-lens/semgrep.json`
+- `/lens-semgrep disable` — persistently disable Semgrep dispatch for this project
+- `/lens-semgrep clear` — remove `.pi-lens/semgrep.json` and return to local-config auto-discovery
+
+Local rules can opt into pi-lens blocking semantics with metadata:
+
+```yaml
+metadata:
+  pi-lens:
+    semantic: blocking
+    defect_class: injection
+    confidence: high
+```
+
 ## Dependencies
 
 Auto-install behavior depends on gate type:
@@ -199,6 +229,7 @@ Auto-install behavior depends on gate type:
 | `vscode-html-languageserver-bin`    | HTML LSP                         | Yes            | Language-default                   |
 | `svelte-language-server`            | Svelte LSP                       | Yes            | Flow-gated                         |
 | `@vue/language-server`              | Vue LSP                          | Yes            | Flow-gated                         |
+| `semgrep`                           | Experimental security dispatch   | Manual         | Local config / explicit opt-in     |
 | `psscriptanalyzer`                  | PowerShell linting               | Manual         | —                                  |
 
 Additional language servers (gopls, ruby-lsp, solargraph, etc.) are auto-detected from PATH or installed via native package managers (`go install`, `gem install`) when their language is detected.
@@ -217,6 +248,8 @@ pi --no-autofix           # Skip auto-fix (Biome, Ruff, ESLint, stylelint, sqlfl
 pi --no-tests             # Skip test runner
 pi --no-delta             # Disable delta mode (show all diagnostics, not just new ones)
 pi --lens-guard           # Block git commit/push when unresolved blockers exist (experimental)
+pi --lens-semgrep         # Enable Semgrep dispatch when a local/configured Semgrep config exists
+pi --lens-semgrep-config p/ci  # Explicit Semgrep config for dispatch (requires --lens-semgrep)
 ```
 
 ## Environment Variables
@@ -237,6 +270,7 @@ pi --lens-guard           # Block git commit/push when unresolved blockers exist
 - `/lens-health` — runtime health, latency, and diagnostic telemetry
 - `/lens-tools` — tool installation status: globally installed, auto-installed, or npx fallback
 - `/lens-tdi` — Technical Debt Index (TDI) and project health trend
+- `/lens-semgrep` — manage experimental Semgrep dispatch (`status`, `init`, `enable`, `disable`, `clear`)
 
 ## Language Coverage
 

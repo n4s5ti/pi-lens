@@ -12,6 +12,9 @@ const SILENT_ERROR_HINTS = [
 
 const INJECTION_HINTS = [
 	"sql-injection",
+	"command-injection",
+	"template-injection",
+	"xss",
 	"eval",
 	"exec",
 	"inner-html",
@@ -56,7 +59,16 @@ export function classifyDefect(
 		return "correctness";
 	}
 
-	if (text.includes("unsafe") || text.includes("security")) return "safety";
+	if (
+		text.includes("unsafe") ||
+		text.includes("security") ||
+		text.includes("ssrf") ||
+		text.includes("path-traversal") ||
+		text.includes("deserial") ||
+		text.includes("auth-bypass") ||
+		text.includes("crypto")
+	)
+		return "safety";
 	if (text.includes("style") || text.includes("format")) return "style";
 
 	return "unknown";

@@ -26,6 +26,7 @@ const TOOL_PROFILE_MAP: Record<string, ToolProfile> = {
 	"rust-clippy": { dedupPriority: 95, lintLike: true },
 	shellcheck: { dedupPriority: 95, lintLike: true },
 	"type-safety": { dedupPriority: 95, lintLike: true },
+	semgrep: { dedupPriority: 105, lintLike: false },
 };
 
 export function getToolProfile(
