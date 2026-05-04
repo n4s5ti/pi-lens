@@ -317,6 +317,13 @@ export default function (pi: ExtensionAPI) {
 
 	// --- Flags ---
 
+	pi.registerFlag("no-lens", {
+		description:
+			"Start pi-lens disabled for this session. Re-enable with /lens-toggle.",
+		type: "boolean",
+		default: false,
+	});
+
 	pi.registerFlag("no-lsp", {
 		description:
 			"Disable unified LSP diagnostics and use language-specific fallbacks (for example ts-lsp, pyright)",
@@ -383,7 +390,22 @@ export default function (pi: ExtensionAPI) {
 		default: false,
 	});
 
+	let lensEnabled = !pi.getFlag("no-lens");
+
 	// --- Commands ---
+
+	pi.registerCommand("lens-toggle", {
+		description: "Toggle pi-lens on/off for the current session. Usage: /lens-toggle",
+		handler: async (_args, ctx) => {
+			lensEnabled = !lensEnabled;
+			ctx.ui.notify(
+				lensEnabled
+					? "pi-lens enabled for this session."
+					: "pi-lens disabled for this session. Run /lens-toggle again to resume.",
+				lensEnabled ? "info" : "warning",
+			);
+		},
+	});
 
 	pi.registerCommand("lens-semgrep", {
 		description:
@@ -924,6 +946,7 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("tool_call", async (event, ctx) => {
 		const toolName = (event as { toolName?: string }).toolName ?? "";
+		if (!lensEnabled) return;
 		if (
 			pi.getFlag("lens-guard") &&
 			isGitCommitOrPushAttempt(toolName, event.input)
@@ -1426,6 +1449,7 @@ export default function (pi: ExtensionAPI) {
 	// Real-time feedback on file writes/edits
 	// biome-ignore lint/suspicious/noExplicitAny: pi.on overload mismatch for tool_result event type
 	(pi as any).on("tool_result", async (event: any) => {
+		if (!lensEnabled) return;
 		updateRuntimeIdentityFromEvent(event);
 		const { biomeClient, ruffClient, metricsClient, agentBehaviorClient } =
 			await loadBootstrapClients();
@@ -1454,6 +1478,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("agent_end", async (_event, ctx) => {
+		if (!lensEnabled) return;
 		try {
 			await handleAgentEnd({
 				ctxCwd: ctx.cwd,
@@ -1473,6 +1498,7 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	pi.on("turn_end", async (_event: any, ctx) => {
+		if (!lensEnabled) return;
 		try {
 			const { jscpdClient, knipClient, depChecker, testRunnerClient } =
 				await loadBootstrapClients();
@@ -1517,6 +1543,7 @@ export default function (pi: ExtensionAPI) {
 			event: { messages?: Array<{ role: string; content: unknown }> } | unknown,
 			ctx: { cwd?: string },
 		) => {
+			if (!lensEnabled) return;
 			try {
 				const cwd = ctx.cwd ?? process.cwd();
 				const turnEndFindings = consumeTurnEndFindings(cacheManager, cwd);

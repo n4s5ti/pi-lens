@@ -241,6 +241,7 @@ Additional language servers (gopls, ruby-lsp, solargraph, etc.) are auto-detecte
 pi
 
 # Optional switches
+pi --no-lens             # Start pi-lens disabled for this session; /lens-toggle can re-enable
 pi --no-lsp              # Disable unified LSP diagnostics
 pi --no-autoformat        # Skip auto-formatting entirely
 pi --immediate-format      # Format immediately after each edit instead of deferring to agent_end
@@ -266,6 +267,7 @@ pi --lens-semgrep-config p/ci  # Explicit Semgrep config for dispatch (requires 
 
 ## Key Commands
 
+- `/lens-toggle` — toggle pi-lens on/off for the current session without restarting
 - `/lens-booboo` — full quality report for current project state
 - `/lens-health` — runtime health, latency, and diagnostic telemetry
 - `/lens-tools` — tool installation status: globally installed, auto-installed, or npx fallback
