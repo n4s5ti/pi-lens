@@ -164,7 +164,7 @@ export class ReadGuard {
 		if (!fileReads || fileReads.length === 0) {
 			const verdict = this.blockOrWarn(
 				"zero-read",
-				`🔴 BLOCKED — Edit without read\n\nYou are trying to edit \`${filePath}\` but have not read it in this conversation.\n\nTo proceed:\n  1. Read the file first: \`read path="${filePath}"\`\n  2. Or run \`/lens-allow-edit ${filePath}\` to override (use sparingly)`,
+				`🔴 BLOCKED — Edit without read\n\nYou are trying to edit \`${filePath}\` but have not read it in this conversation.\n\nRead the file first, then retry the edit: \`read path="${filePath}"\``,
 			);
 			this.recordVerdict(filePath, "edit", touchedLines, verdict, {
 				reasonKind: "zero_read",
@@ -212,7 +212,7 @@ export class ReadGuard {
 					lastRead.effectiveOffset + lastRead.effectiveLimit - 1;
 				const verdict = this.blockOrWarn(
 					"out-of-range",
-					`🔴 BLOCKED — Edit outside read range\n\nYou read \`${filePath}\` lines ${lastRead.effectiveOffset}-${lastReadEnd}${lastRead.enclosingSymbol ? ` (${lastRead.enclosingSymbol.kind} \`${lastRead.enclosingSymbol.name}\`)` : ""}, but your edit touches lines ${editStart}-${editEnd}.\n\nThe edit target is outside the context you previously read.\nTo proceed:\n  1. Read the relevant section: \`read path="${filePath}" offset=${Math.max(1, editStart - 5)} limit=${Math.min(30, editEnd - editStart + 10)}\`\n  2. Or read the full file: \`read path="${filePath}"\``,
+					`🔴 BLOCKED — Edit outside read range\n\nYou read \`${filePath}\` lines ${lastRead.effectiveOffset}-${lastReadEnd}${lastRead.enclosingSymbol ? ` (${lastRead.enclosingSymbol.kind} \`${lastRead.enclosingSymbol.name}\`)` : ""}, but your edit touches lines ${editStart}-${editEnd}.\n\nRead the relevant section first, then retry the edit:\n  \`read path="${filePath}" offset=${Math.max(1, editStart - 5)} limit=${Math.min(30, editEnd - editStart + 10)}\``,
 					{
 						editRange: range,
 						readRanges: fileReads.map((r) => ({

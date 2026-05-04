@@ -537,7 +537,7 @@ describe("index.ts integration", () => {
 			expect.objectContaining({
 				block: true,
 				reason: expect.stringContaining(
-					"RETRYABLE — Indentation mismatch in oldText",
+					"RETRYABLE — Indentation mismatch detected",
 				),
 			}),
 		);
@@ -639,7 +639,7 @@ describe("index.ts integration", () => {
 			expect.objectContaining({
 				block: true,
 				reason: expect.stringContaining(
-					"RETRYABLE — Indentation mismatch in oldText",
+					"RETRYABLE — Indentation mismatch detected",
 				),
 			}),
 		);

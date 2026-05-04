@@ -206,7 +206,7 @@ describe("read-guard tool line helpers", () => {
 			expect(result.touchedLines).toBeUndefined();
 			expect(result.preflightError).toMatch(/BLOCKED/);
 			expect(result.preflightError).toMatch(/was not found/);
-			expect(result.preflightError).toMatch(/Re-read the file/);
+			expect(result.preflightError).toMatch(/Re-read the relevant section/);
 		} finally {
 			env.cleanup();
 		}

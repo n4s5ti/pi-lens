@@ -101,7 +101,7 @@ function resolveOldTextEdits(
 		if (occurrenceLines.length === 0) {
 			const preview = oldText.trimStart().substring(0, 60).replace(/\n/g, "↵");
 			errors.push(
-				`edits[${editIndex}].oldText ("${preview}") was not found in the current file content. Re-read the file and refresh the edit target before retrying.`,
+				`edits[${editIndex}].oldText ("${preview}") was not found in the current file content. Re-read the relevant section of the file to confirm the exact text, then retry with the verbatim content.`,
 			);
 			logReadGuardEvent({
 				event: "oldtext_not_found",
@@ -157,7 +157,7 @@ function resolveOldTextEdits(
 			errors.length > 0
 				? errors
 				: [
-						"One or more edit targets could not be resolved to exact lines. Re-read the file and retry with more precise oldText context.",
+						"One or more edit targets could not be resolved to exact lines. Re-read the relevant section and retry with the exact content as it appears in the file.",
 					];
 		return {
 			touchedLines: undefined,
