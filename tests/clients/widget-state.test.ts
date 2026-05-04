@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	clearWidgetState,
 	recordDiagnostics,
+	recordFormatter,
 	recordLsp,
 	recordRunner,
 	renderWidget,
 	setSessionLanguages,
-} from "../../clients/widget-state.js";
+} from "../../clients/widget-state.ts";
 
 const e = String.fromCharCode(27);
 const theme = {
@@ -98,5 +99,17 @@ describe("widget-state renderWidget", () => {
 		const allLines = lines.join("");
 		expect(allLines).toContain("warning in pi-webaio");
 		expect(allLines).not.toContain("error in pi-lens");
+	});
+
+	it("shows formatter name when a formatter changed the file", () => {
+		const filePath = `${process.cwd()}/app.ts`;
+		recordFormatter(filePath, "biome", true, true);
+		recordFormatter(filePath, "prettier", false, true);
+
+		const lines = renderWidget(120, theme);
+		const allLines = lines.join("");
+
+		expect(allLines).toContain("fmt:biome");
+		expect(allLines).not.toContain("prettier");
 	});
 });

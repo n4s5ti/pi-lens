@@ -189,9 +189,13 @@ export function renderWidget(
 				: warnings > 0
 					? " " + yellow(`${warnings}W`)
 					: " " + dim("clean");
-		const formatMark = [...rec.formatters.values()].some((f) => f.changed)
-			? dim(" fmt")
-			: "";
+		const changedFormatters = [...rec.formatters.entries()]
+			.filter(([, f]) => f.changed)
+			.map(([name]) => name);
+		const formatMark =
+			changedFormatters.length > 0
+				? dim(` fmt:${changedFormatters.join(",")}`)
+				: "";
 		const row = ` ${dot} ${base}  ${dim(runnerNames)}${formatMark}${counts}`;
 		lines.push(fitLine(row, w));
 	}
