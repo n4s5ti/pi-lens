@@ -296,6 +296,31 @@ export function emitDashboardFormatterSelected(event: {
 	});
 }
 
+export interface SessionSummary {
+	type: "lens.session.summary";
+	startupMode: string;
+	projectRoot: string;
+	scanRoot: string;
+	sourceFileCount?: number;
+	monorepoOverride?: boolean;
+	languages: Array<{ kind: string; configured: boolean; count: number }>;
+	startupTools: Array<{ name: string; autoInstall: boolean }>;
+	lspWarmFiles: number;
+	testRunner?: string;
+	goAvailable: boolean;
+	rustAvailable: boolean;
+	prettierDetected: boolean;
+	staleTSCleaned: number;
+	startupScans: string[];
+	lspEnabled: boolean;
+}
+
+export function emitDashboardSessionSummary(
+	summary: Readonly<Omit<SessionSummary, "type">>,
+): void {
+	emitDashboardEvent({ type: "lens.session.summary", ...summary });
+}
+
 export function emitDashboardDiagnostics(event: {
 	filePath: string;
 	diagnostics: Array<{

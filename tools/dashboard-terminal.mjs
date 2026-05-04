@@ -20,6 +20,7 @@ const state = {
 	files: new Map(),
 	eventCount: 0,
 	lastEventAt: undefined,
+	sessionSummary: null,
 };
 
 let offset = 0;
@@ -55,6 +56,8 @@ const red = (s) => color(31, s);
 const yellow = (s) => color(33, s);
 const green = (s) => color(32, s);
 const cyan = (s) => color(36, s);
+const bold = (s) => color(1, s);
+const blue = (s) => color(34, s);
 
 function fileState(filePath) {
 	const key = filePath || "<unknown>";
@@ -152,6 +155,10 @@ function applyEvent(event) {
 			if (event.filePath) fileState(event.filePath);
 			break;
 		}
+		case "lens.session.summary":
+			state.sessionSummary = event;
+			state.configs.set("__root", { projectRoot: event.projectRoot });
+			break;
 		case "lens.diagnostics": {
 			const f = fileState(event.filePath);
 			f.diagnostics.clear();
@@ -170,14 +177,6 @@ function scheduleRender() {
 	renderTimer = setTimeout(render, 80);
 }
 
-function getTerminalHeight() {
-	try {
-		return process.stdout.rows || 24;
-	} catch {
-		return 24;
-	}
-}
-
 function render() {
 	const rows = [];
 	rows.push(
@@ -185,6 +184,55 @@ function render() {
 	);
 	rows.push(dim(`log: ${logPath}`));
 	rows.push("");
+
+	// --- Session start summary (sticky, shown once received) ---
+	if (state.sessionSummary) {
+		const s = state.sessionSummary;
+		rows.push(bold("Session Summary"));
+
+		// Languages
+		if (s.languages && s.languages.length > 0) {
+			const langParts = s.languages.map((l) => {
+				const cfg = l.configured ? green("✓") : yellow("?");
+				return `${cfg}${l.kind}(${l.count})`;
+			});
+			rows.push(`  Languages: ${langParts.join("  ")}`);
+		}
+
+		// Tools (preinstall / LSP)
+		const toolLines = [];
+		if (s.lspEnabled) toolLines.push(green("LSP"));
+		if (s.startupTools && s.startupTools.length > 0) {
+			for (const t of s.startupTools) {
+				toolLines.push(t.autoInstall ? green(t.name) : dim(t.name));
+			}
+		}
+		if (s.testRunner) toolLines.push(blue(`test:${s.testRunner}`));
+		if (s.goAvailable) toolLines.push(blue("go"));
+		if (s.rustAvailable) toolLines.push(blue("rust"));
+		if (s.prettierDetected) toolLines.push(dim("prettier"));
+		toolLines.push(
+			s.lspWarmFiles > 0 ? green(`${s.lspWarmFiles} warm`) : dim("0 warm"),
+		);
+		rows.push(`  Tools: ${toolLines.join("  ")}`);
+
+		// Startup scans
+		if (s.startupScans && s.startupScans.length > 0) {
+			rows.push(`  Scans: ${s.startupScans.map((n) => dim(n)).join(", ")}`);
+		}
+
+		// Mode / root
+		const metaParts = [];
+		metaParts.push(dim(`mode:${s.startupMode || "?"}`));
+		if (s.sourceFileCount != null)
+			metaParts.push(dim(`${s.sourceFileCount} src`));
+		if (s.monorepoOverride) metaParts.push(yellow("monorepo"));
+		if (s.staleTSCleaned > 0)
+			metaParts.push(yellow(`${s.staleTSCleaned} stale ts`));
+		rows.push(`  ${metaParts.join("  ")}`);
+
+		rows.push("");
+	}
 
 	rows.push(cyan("Active tools"));
 	if (state.activeTools.size === 0) rows.push(dim("  none"));
