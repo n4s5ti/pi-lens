@@ -4,6 +4,8 @@ All notable changes to pi-lens will be documented in this file.
 
 ## [Unreleased]
 
+## [3.8.41] - 2026-05-05
+
 ### Fixed
 
 - **tree-sitter wasm abort loop and memory leak (fixes #56)** — when the emscripten wasm runtime aborts (OOM or assertion failure on large workspaces), the module-level heap is permanently corrupted. pi-lens was re-invoking the dead runtime on every subsequent file write, printing `Aborted()` to stderr on each query and leaking memory on each retry. Added a module-level `_wasmAborted` flag: the first abort detected in the query catch loop poisons the singleton and prevents any further tree-sitter calls for the session. The runner skips cleanly with `reason: wasm_aborted_fatal` logged to `tree-sitter.log`.
