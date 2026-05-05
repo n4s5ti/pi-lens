@@ -159,10 +159,14 @@ describe("computeCascadeForFile", () => {
 	it("falls back to passive snapshot when graph neighbors produce no LSP data", async () => {
 		const env = setupTestEnvironment("cascade-fallback-");
 		try {
-			const primary = path.join(env.tmpDir, "main.foo");
+			// Primary must be a recognised code file so detectFileKind passes the
+			// non_code_file guard. Neighbor uses an unknown extension so
+			// configuredServerCount===0 prevents active touching — keeping
+			// producedLspData false and triggering appendFallbackNeighbors.
+			const primary = path.join(env.tmpDir, "main.ts");
 			const noLspNeighbor = path.join(env.tmpDir, "neighbor.foo");
 			const fallbackFile = path.join(env.tmpDir, "already-open.ts");
-			fs.writeFileSync(primary, "primary\n");
+			fs.writeFileSync(primary, "export const x = 1;\n");
 			fs.writeFileSync(noLspNeighbor, "neighbor\n");
 			fs.writeFileSync(fallbackFile, "const x = 1;\n");
 			mocks.computeImpactCascade.mockReturnValue(
