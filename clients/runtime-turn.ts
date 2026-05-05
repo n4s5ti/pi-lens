@@ -176,13 +176,17 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 	});
 
 	const t1 = Date.now();
+	let jscpdMeta: { skipped?: boolean; fileCount?: number; totalClones?: number; matchedClones?: number } = {};
 	if (runtime.isStartupScanInFlight("jscpd")) {
 		dbg("turn_end: skipping jscpd (startup scan still in flight)");
+		jscpdMeta = { skipped: true };
 	} else if (await jscpdClient.ensureAvailable()) {
 		const jscpdFiles = cacheManager.getFilesForJscpd(cwd);
+		jscpdMeta = { fileCount: jscpdFiles.length, totalClones: 0, matchedClones: 0 };
 		if (jscpdFiles.length > 0) {
 			dbg(`turn_end: jscpd scanning ${jscpdFiles.length} file(s)`);
 			const result = jscpdClient.scan(cwd);
+			jscpdMeta.totalClones = result.clones.length;
 			const jscpdFileSet = new Set(
 				jscpdFiles.map((f) => resolveRunnerPath(cwd, f)),
 			);
@@ -214,6 +218,7 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 
 				return matchA || matchB;
 			});
+			jscpdMeta.matchedClones = filtered.length;
 			if (filtered.length > 0) {
 				let report = `🔴 New duplicates in modified code:\n`;
 				let firstPath: string | null = null;
@@ -256,11 +261,14 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 		filePath: cwd,
 		phase: "jscpd",
 		durationMs: Date.now() - t1,
+		metadata: jscpdMeta,
 	});
 
 	const t2 = Date.now();
+	let knipMeta: { skipped?: boolean; success?: boolean; totalIssues?: number; newIssues?: number; blockerIssues?: number } = {};
 	if (runtime.isStartupScanInFlight("knip")) {
 		dbg("turn_end: skipping knip (startup scan still in flight)");
+		knipMeta = { skipped: true };
 	} else if (await knipClient.ensureAvailable()) {
 		const knipResult = knipClient.analyze(cwd, getKnipIgnorePatterns());
 		const prevKnip = cacheManager.readCache<ReturnType<KnipClient["analyze"]>>(
@@ -268,6 +276,7 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 			cwd,
 		);
 		cacheManager.writeCache("knip", knipResult, cwd);
+		knipMeta = { success: knipResult.success, totalIssues: knipResult.issues.length, newIssues: 0, blockerIssues: 0 };
 
 		if (knipResult.success && knipResult.issues.length > 0) {
 			const issueKey = (i: KnipIssue) =>
@@ -281,10 +290,12 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 				const abs = resolveRunnerPath(cwd, issue.file);
 				return modifiedSet.has(abs);
 			});
+			knipMeta.newIssues = newIssues.length;
 
 			const blockerIssues = newIssues.filter(
 				(i) => i.type === "unlisted" || i.type === "bin",
 			);
+			knipMeta.blockerIssues = blockerIssues.length;
 			if (blockerIssues.length > 0) {
 				let report =
 					"🔴 New unresolved imports/deps in modified code (Knip):\n";
@@ -309,6 +320,7 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 		filePath: cwd,
 		phase: "knip",
 		durationMs: Date.now() - t2,
+		metadata: knipMeta,
 	});
 
 	const t3 = Date.now();

@@ -281,6 +281,7 @@ export class LSPService {
 				durationMs: effectiveMaxWaitMs,
 				metadata: {
 					maxWaitMs: effectiveMaxWaitMs,
+					serverIds: servers.map((s) => s.id),
 				},
 			});
 		}
