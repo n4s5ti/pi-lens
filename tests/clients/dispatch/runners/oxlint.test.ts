@@ -112,4 +112,52 @@ describe("oxlint runner", () => {
 			env.cleanup();
 		}
 	});
+
+	it("falls back to plain oxlint when Vite+ is configured but vp is not installed", async () => {
+		const env = setupTestEnvironment("pi-lens-oxlint-vite-plus-fallback-");
+		try {
+			const filePath = path.join(env.tmpDir, "sample.ts");
+			fs.writeFileSync(filePath, "console.log('hi')\n");
+			fs.writeFileSync(
+				path.join(env.tmpDir, "package.json"),
+				JSON.stringify({ devDependencies: { "vite-plus": "^0.1.0" } }),
+			);
+
+			// First call: vp --version (not found)
+			// Second call: oxlint --format unix <file> (success, no issues)
+			safeSpawnAsync
+				.mockResolvedValueOnce({
+					error: new Error("not found"),
+					status: 1,
+					stdout: "",
+					stderr: "",
+				})
+				.mockResolvedValueOnce({
+					error: null,
+					status: 0,
+					stdout: "",
+					stderr: "",
+				});
+
+			const runner = (
+				await import("../../../../clients/dispatch/runners/oxlint.ts")
+			).default;
+
+			const result = await runner.run(createCtx(filePath, env.tmpDir) as never);
+
+			expect(safeSpawnAsync).toHaveBeenCalledWith(
+				"vp",
+				["--version"],
+				expect.objectContaining({ timeout: 5000 }),
+			);
+			expect(safeSpawnAsync).toHaveBeenCalledWith(
+				"oxlint",
+				expect.arrayContaining(["--format", "unix", filePath]),
+				expect.objectContaining({ timeout: 30000 }),
+			);
+			expect(result.status).toBe("succeeded");
+		} finally {
+			env.cleanup();
+		}
+	});
 });

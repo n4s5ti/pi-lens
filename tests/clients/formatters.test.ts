@@ -895,4 +895,26 @@ describe("oxfmt formatter — detection and policy selection", () => {
 		expect(cmd?.[0]).toBe(bin);
 		expect(cmd?.[1]).toBe(filePath);
 	});
+
+	it("detected via vite-plus in devDependencies", async () => {
+		createTempFile(
+			tmpDir,
+			"package.json",
+			JSON.stringify({ devDependencies: { "vite-plus": "^0.1.0" } }),
+		);
+		expect(await oxfmtFormatter.detect(tmpDir)).toBe(true);
+	});
+
+	it("resolveCommand uses vp fmt when Vite+ is configured", async () => {
+		createTempFile(
+			tmpDir,
+			"package.json",
+			JSON.stringify({ devDependencies: { "vite-plus": "^0.1.0" } }),
+		);
+		const vp = nodeModulesBin(tmpDir, "vp");
+		makeFakeExe(vp);
+		const filePath = fileIn(tmpDir, "index.ts");
+		const cmd = await oxfmtFormatter.resolveCommand!(filePath, tmpDir);
+		expect(cmd).toEqual([vp, "fmt", filePath, "--write"]);
+	});
 });

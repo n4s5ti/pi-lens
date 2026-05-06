@@ -34,6 +34,7 @@ import {
 	hasSqlfluffConfig,
 	hasStandardrbConfig,
 	hasStyluaConfig,
+	hasVitePlusConfig,
 } from "./tool-policy.js";
 
 const _lazyInstallAttempts = new Set<string>();
@@ -279,6 +280,7 @@ function hasExplicitFormatterConfig(
 		case "oxfmt":
 			return (
 				hasOxfmtConfig(cwd) ||
+				hasVitePlusConfig(cwd) ||
 				hasNearestPackageJsonDependency(cwd, "@oxc-project/oxfmt")
 			);
 		case "ruff":
@@ -413,6 +415,12 @@ export const oxfmtFormatter: FormatterInfo = {
 	name: "oxfmt",
 	command: ["oxfmt", "$FILE"],
 	async resolveCommand(filePath, cwd) {
+		if (hasVitePlusConfig(cwd)) {
+			const localVp = await findInNodeModules("vp", cwd);
+			if (localVp) return [localVp, "fmt", filePath, "--write"];
+			const globalVp = await which("vp");
+			if (globalVp) return [globalVp, "fmt", filePath, "--write"];
+		}
 		const local = await findInNodeModules("oxfmt", cwd);
 		if (local) return [local, filePath];
 		const found = await which("oxfmt");
@@ -423,6 +431,7 @@ export const oxfmtFormatter: FormatterInfo = {
 	async detect(cwd: string) {
 		return (
 			hasOxfmtConfig(cwd) ||
+			hasVitePlusConfig(cwd) ||
 			hasNearestPackageJsonDependency(cwd, "@oxc-project/oxfmt")
 		);
 	},

@@ -1045,6 +1045,15 @@ const PHPSTAN_CONFIGS = [
 	"phpstan.dist.neon",
 ];
 
+const VITE_CONFIGS = [
+	"vite.config.ts",
+	"vite.config.mts",
+	"vite.config.cts",
+	"vite.config.js",
+	"vite.config.mjs",
+	"vite.config.cjs",
+];
+
 export type JstsLintRunnerName = "eslint" | "oxlint" | "biome-check-json";
 
 export interface JstsLintPolicyContext {
@@ -1603,6 +1612,7 @@ export function hasOxfmtConfig(cwd: string): boolean {
 	while (true) {
 		if (fs.existsSync(path.join(dir, "oxfmt.toml"))) return true;
 		if (fs.existsSync(path.join(dir, ".oxfmtrc.json"))) return true;
+		if (hasVitePlusConfig(dir)) return true;
 		const pkgPath = path.join(dir, "package.json");
 		if (fs.existsSync(pkgPath)) {
 			try {
@@ -1934,6 +1944,34 @@ export function getRubocopCommand(cwd: string): {
 	return { cmd: "rubocop", args: [] };
 }
 
+export function hasVitePlusConfig(cwd: string): boolean {
+	for (const dir of walkUpDirs(cwd)) {
+		if (fs.existsSync(path.join(dir, "vite-plus.json"))) return true;
+		const pkgPath = path.join(dir, "package.json");
+		if (fs.existsSync(pkgPath)) {
+			try {
+				const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as {
+					dependencies?: Record<string, string>;
+					devDependencies?: Record<string, string>;
+				};
+				const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+				if (deps["vite-plus"] || deps["@voidzero-dev/vite-plus-core"]) {
+					return true;
+				}
+			} catch {}
+		}
+		for (const cfg of VITE_CONFIGS) {
+			const cfgPath = path.join(dir, cfg);
+			if (!fs.existsSync(cfgPath)) continue;
+			try {
+				const content = fs.readFileSync(cfgPath, "utf-8");
+				if (content.includes("vite-plus")) return true;
+			} catch {}
+		}
+	}
+	return false;
+}
+
 export function hasOxlintConfig(cwd: string): boolean {
 	for (const dir of walkUpDirsUntilPackageJson(cwd)) {
 		if (
@@ -1942,7 +1980,7 @@ export function hasOxlintConfig(cwd: string): boolean {
 		)
 			return true;
 	}
-	return false;
+	return hasVitePlusConfig(cwd);
 }
 
 export function getPreferredJstsLintRunners(

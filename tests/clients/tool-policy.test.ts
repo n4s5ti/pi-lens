@@ -41,6 +41,7 @@ import {
 	hasStandardrbConfig,
 	hasStylelintConfig,
 	hasStyluaConfig,
+	hasVitePlusConfig,
 	hasYamllintConfig,
 	isSafePipelineAutofixTool,
 	shouldAutoInstallTool,
@@ -651,6 +652,25 @@ describe("tool-policy", () => {
 			createTempFile(env.tmpDir, ".oxlintrc.json", "{}\n");
 			const subDir = path.join(env.tmpDir, "src");
 			fs.mkdirSync(subDir, { recursive: true });
+			expect(hasOxlintConfig(subDir)).toBe(true);
+		} finally {
+			env.cleanup();
+		}
+	});
+
+	it("detects Vite+ as oxfmt/oxlint project configuration", () => {
+		const env = setupTestEnvironment("pi-lens-tool-policy-vite-plus-");
+		try {
+			createTempFile(
+				env.tmpDir,
+				"package.json",
+				JSON.stringify({ devDependencies: { "vite-plus": "^0.1.0" } }),
+			);
+			const subDir = path.join(env.tmpDir, "src");
+			fs.mkdirSync(subDir, { recursive: true });
+
+			expect(hasVitePlusConfig(subDir)).toBe(true);
+			expect(hasOxfmtConfig(subDir)).toBe(true);
 			expect(hasOxlintConfig(subDir)).toBe(true);
 		} finally {
 			env.cleanup();

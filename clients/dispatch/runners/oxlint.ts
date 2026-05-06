@@ -7,8 +7,13 @@
  * Requires: oxlint (npm install -g oxlint)
  */
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { safeSpawnAsync } from "../../safe-spawn.js";
-import { getJstsLintPolicyForCwd } from "../../tool-policy.js";
+import {
+	getJstsLintPolicyForCwd,
+	hasVitePlusConfig,
+} from "../../tool-policy.js";
 import { PRIORITY } from "../priorities.js";
 import type {
 	Diagnostic,
@@ -22,6 +27,38 @@ import {
 } from "./utils/runner-helpers.js";
 
 const oxlint = createAvailabilityChecker("oxlint", ".exe");
+
+function resolveLocalVp(cwd: string): string | null {
+	const isWin = process.platform === "win32";
+	let dir = cwd;
+	const root = path.parse(dir).root;
+	while (true) {
+		const candidates = isWin
+			? [
+					path.join(dir, "node_modules", ".bin", "vp.cmd"),
+					path.join(dir, "node_modules", ".bin", "vp"),
+				]
+			: [path.join(dir, "node_modules", ".bin", "vp")];
+		for (const candidate of candidates) {
+			if (fs.existsSync(candidate)) return candidate;
+		}
+		if (dir === root) break;
+		const parent = path.dirname(dir);
+		if (parent === dir) break;
+		dir = parent;
+	}
+	return null;
+}
+
+async function resolveVitePlusCommand(cwd: string): Promise<string | null> {
+	const local = resolveLocalVp(cwd);
+	if (local) return local;
+	const version = await safeSpawnAsync("vp", ["--version"], {
+		timeout: 5000,
+		cwd,
+	});
+	return !version.error && version.status === 0 ? "vp" : null;
+}
 
 const oxlintRunner: RunnerDefinition = {
 	id: "oxlint",
@@ -38,23 +75,27 @@ const oxlintRunner: RunnerDefinition = {
 		}
 
 		let cmd: string | null = null;
-		if (oxlint.isAvailable(cwd)) {
+		let args: string[];
+		if (hasVitePlusConfig(cwd)) {
+			cmd = await resolveVitePlusCommand(cwd);
+		}
+		if (cmd) {
+			args = ["lint", "--format", "unix", ctx.filePath];
+		} else if (oxlint.isAvailable(cwd)) {
 			cmd = oxlint.getCommand(cwd);
+			args = ["--format", "unix", ctx.filePath];
 		} else {
 			cmd = await resolveToolCommandWithInstallFallback(cwd, "oxlint");
+			args = ["--format", "unix", ctx.filePath];
 		}
 		if (!cmd) {
 			return { status: "skipped", diagnostics: [], semantic: "none" };
 		}
 
-		// Run oxlint on the file
-		const result = await safeSpawnAsync(
-			cmd,
-			["--format", "unix", ctx.filePath],
-			{
-				timeout: 30000,
-			},
-		);
+		// Run oxlint (or Vite+'s vp lint wrapper) on the file.
+		const result = await safeSpawnAsync(cmd, args, {
+			timeout: 30000,
+		});
 
 		// Oxlint returns non-zero when issues found
 		if (result.status === 0) {
