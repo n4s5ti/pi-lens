@@ -440,6 +440,14 @@ export async function handleSessionStart(
 		resetLSPService,
 	} = deps;
 
+	// Lightweight phase timer — resets after each call so each log line shows
+	// the cost of that phase alone, not cumulative time from session start.
+	let _phaseT = Date.now();
+	const phase = (name: string): void => {
+		dbg(`session_start phase ${name}: ${Date.now() - _phaseT}ms`);
+		_phaseT = Date.now();
+	};
+
 	metricsClient.reset();
 	getDiagnosticTracker().reset();
 	clearFileTimeSessions();
@@ -498,12 +506,14 @@ export async function handleSessionStart(
 	}
 
 	const startupScan = resolveStartupScanContext(cwd);
+	phase("scan-context");
 	const scanRoot = startupScan.projectRoot ?? cwd;
 	const useScanRootForSignals =
 		startupScan.canWarmCaches || startupScan.reason === "too-many-source-files";
 	const analysisRoot = useScanRootForSignals ? scanRoot : cwd;
 	runtime.projectRoot = cwd;
 	const languageProfile = detectProjectLanguageProfile(analysisRoot);
+	phase("language-profile");
 	dbg(`session_start cwd: ${cwd}`);
 	dbg(
 		`session_start scan root: ${scanRoot} (warmCaches=${startupScan.canWarmCaches}${startupScan.reason ? `, reason=${startupScan.reason}` : ""})`,
@@ -564,6 +574,7 @@ export async function handleSessionStart(
 	}
 
 	const detectedRunner = testRunnerClient.detectRunner(analysisRoot);
+	phase("test-runner-detect");
 	if (detectedRunner) tools.push(`Test runner (${detectedRunner.runner})`);
 	if (goClient.isGoAvailable()) tools.push("Go (go vet)");
 	if (rustClient.isAvailable()) tools.push("Rust (cargo)");
@@ -575,6 +586,7 @@ export async function handleSessionStart(
 	];
 
 	runtime.projectRulesScan = scanProjectRules(analysisRoot);
+	phase("project-rules");
 	if (runtime.projectRulesScan.hasCustomRules) {
 		const ruleCount = runtime.projectRulesScan.rules.length;
 		const sources = [
@@ -619,6 +631,7 @@ export async function handleSessionStart(
 	// blocked by per-file LSP waits.
 	if (!getFlag("no-lsp") && allowBootstrapTasks) {
 		const lspConfig = await loadLSPConfig(cwd);
+		phase("lsp-config");
 		const warmFiles = lspConfig.warmFiles ?? [];
 		if (warmFiles.length > 0) {
 			igniteWarmFiles(cwd, warmFiles, runtime, sessionGeneration, dbg).catch(
