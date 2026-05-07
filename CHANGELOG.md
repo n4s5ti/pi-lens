@@ -10,6 +10,10 @@ All notable changes to pi-lens will be documented in this file.
 - **Startup: `lsp-config` phase is now fully fire-and-forget** — `loadLSPConfig` and `igniteWarmFiles` no longer block the interactive path, removing ~1s from session start on Windows (previously dominated by sequential ENOENT `readFile` calls walking the directory tree to find a config file).
 - **Startup: persistent tool probe cache** — `ensureTool` now checks `~/.pi-lens/probe-cache.json` before falling back to the full `verifyToolBinary` process spawn. Cache entries are validated with `fs.access` + mtime check and expire after 24 h; stale or missing entries fall through to the full probe and update the cache on success.
 
+### Added
+
+- **Startup observability** — `checkProbeCache` now logs the reason for each cache miss (`ttl expired`, `gone`, `mtime changed`); the lsp-config fire-and-forget callback logs how many warm files were configured once the config resolves asynchronously.
+
 
 
 ### Added
