@@ -30,6 +30,7 @@ export interface LSPState {
 	servers: Map<string, LSPServerInfo>;
 	broken: Map<string, number>; // servers that failed to initialize with retry-at timestamp
 	inFlight: Map<string, Promise<SpawnedServer | undefined>>; // prevent duplicate spawns
+	clientSpawnedAt: Map<string, number>; // key: "serverId:root" → epoch ms of last successful spawn
 }
 
 const BROKEN_BASE_COOLDOWN_MS = 15_000;
@@ -150,6 +151,7 @@ export class LSPService {
 			servers: new Map(),
 			broken: new Map(),
 			inFlight: new Map(),
+			clientSpawnedAt: new Map(),
 		};
 	}
 
@@ -287,6 +289,14 @@ export class LSPService {
 		]);
 
 		if (!timeoutResult) {
+			// Snapshot known client health — scan by serverId prefix (no root needed)
+			const knownHealth = [...this.state.clients.entries()]
+				.filter(([k]) => servers.some((s) => k.startsWith(`${s.id}:`)))
+				.map(([k, c]) => ({
+					serverId: k.split(":")[0],
+					alive: c.isAlive(),
+					spawnedAt: this.state.clientSpawnedAt.get(k) ?? null,
+				}));
 			logLatency({
 				type: "phase",
 				phase: "lsp_client_wait_timeout",
@@ -295,6 +305,8 @@ export class LSPService {
 				metadata: {
 					maxWaitMs: effectiveMaxWaitMs,
 					serverIds: servers.map((s) => s.id),
+					// servers absent from knownHealth were never spawned or are still spawning
+					knownClientHealth: knownHealth,
 				},
 			});
 		}
@@ -374,12 +386,26 @@ export class LSPService {
 				}
 				return { client: existing, info: server };
 			}
+			// Dead client — was previously alive, now needs respawn
+			const spawnedAt = this.state.clientSpawnedAt.get(key);
+			logLatency({
+				type: "phase",
+				phase: "lsp_server_respawn",
+				filePath,
+				durationMs: 0,
+				metadata: {
+					serverId: server.id,
+					root,
+					uptimeMs: spawnedAt != null ? Date.now() - spawnedAt : null,
+				},
+			});
 			try {
 				await existing.shutdown();
 			} catch {
 				/* ignore dead client shutdown errors */
 			}
 			this.state.clients.delete(key);
+			this.state.clientSpawnedAt.delete(key);
 			this.state.broken.delete(key);
 		}
 
@@ -482,6 +508,7 @@ export class LSPService {
 						};
 
 			this.state.clients.set(key, client);
+			this.state.clientSpawnedAt.set(key, Date.now());
 			this.failureCounts.delete(key);
 			if (isOptionalServer) {
 				this.optionalDisabled.delete(key);

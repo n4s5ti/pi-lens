@@ -13,6 +13,7 @@ import { EventEmitter } from "node:events";
 import { existsSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import type { MessageConnection } from "vscode-jsonrpc";
+import { logLatency } from "../latency-logger.js";
 import {
 	createMessageConnection,
 	StreamMessageReader,
@@ -549,10 +550,24 @@ function setupConnectionLifecycle(state: LSPClientState): void {
 		disposeClientConnection(state);
 	});
 
-	state.lspProcess.process.on("exit", (_code) => {
+	state.lspProcess.process.on("exit", (code) => {
+		const wasConnected = state.isConnected;
 		state.isConnected = false;
 		state.isDestroyed = true;
 		disposeClientConnection(state);
+		if (wasConnected) {
+			logLatency({
+				type: "phase",
+				phase: "lsp_server_unexpected_exit",
+				filePath: state.root,
+				durationMs: 0,
+				metadata: {
+					serverId: state.serverId,
+					pid: state.lspProcess.pid,
+					exitCode: code ?? null,
+				},
+			});
+		}
 	});
 }
 
