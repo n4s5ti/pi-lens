@@ -372,8 +372,8 @@ export const corsWildcardRule: FactRule = {
 				/origin\s*:\s*["']\*["']/.test(line) ||
 				(/cors\s*\(/.test(line) && /\*/.test(line))
 			) {
-				diagnostics.push(
-					makeD(
+				diagnostics.push({
+					...makeD(
 						"cors-wildcard",
 						"cors-wildcard",
 						ctx.filePath,
@@ -381,7 +381,9 @@ export const corsWildcardRule: FactRule = {
 						1,
 						"CORS wildcard origin (*) allows any website to make credentialed requests — restrict to known origins",
 					),
-				);
+					severity: "error",
+					semantic: "blocking",
+				});
 			}
 		}
 		return diagnostics;
@@ -511,8 +513,8 @@ export const commentedCredentialsRule: FactRule = {
 				continue;
 			for (const p of CREDENTIAL_PATTERNS) {
 				if (p.test(line)) {
-					diagnostics.push(
-						makeD(
+					diagnostics.push({
+						...makeD(
 							"no-commented-credentials",
 							"no-commented-credentials",
 							ctx.filePath,
@@ -520,7 +522,9 @@ export const commentedCredentialsRule: FactRule = {
 							1,
 							"Possible credential in commented-out code — remove it and rotate the secret",
 						),
-					);
+						severity: "error",
+						semantic: "blocking",
+					});
 					break;
 				}
 			}

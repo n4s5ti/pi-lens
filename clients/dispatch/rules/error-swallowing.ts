@@ -24,8 +24,8 @@ export const errorSwallowingRule: FactRule = {
           filePath: ctx.filePath,
           line: s.line,
           column: s.column,
-          severity: "warning",
-          semantic: "warning",
+          severity: "error",
+          semantic: "blocking",
           message: `Empty catch block silently swallows errors`,
         });
       }

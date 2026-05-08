@@ -187,8 +187,8 @@ try {
     const diagnostics = evaluateRules(ctx);
     expect(diagnostics.length).toBe(1);
     expect(diagnostics[0].message).toContain("Empty catch block");
-    expect(diagnostics[0].severity).toBe("warning");
-    expect(diagnostics[0].semantic).toBe("warning");
+    expect(diagnostics[0].severity).toBe("error");
+    expect(diagnostics[0].semantic).toBe("blocking");
   });
 
   it("does not flag non-empty catch blocks", async () => {
