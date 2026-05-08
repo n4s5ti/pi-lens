@@ -501,7 +501,10 @@ const treeSitterRunner: RunnerDefinition = {
 							const hasSuggestedFix = !!query.has_fix;
 							queryDiagnostics.push({
 								id: `tree-sitter:${query.id}:${line}`,
-								message: query.message,
+								message: query.message.replace(
+								/\{\{(\w+)\}\}/g,
+								(_, name) => match.captures[name]?.trim() ?? `{{${name}}}`,
+							),
 								filePath,
 								line: line + 1, // 1-indexed
 								column: column + 1, // 1-indexed
