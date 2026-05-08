@@ -4,6 +4,8 @@ All notable changes to pi-lens will be documented in this file.
 
 ## [Unreleased]
 
+## [3.8.42] - 2026-05-08
+
 ### Added
 
 - **Fact-rules wired into all language dispatch plans** — the `fact-rules` runner was registered but never listed in any `RunnerGroup`; 20 TypeScript FactRule instances (`corsWildcardRule`, `jwtWithoutVerifyRule`, `dynamicRegexpRule`, `errorObscuringRule`, `highComplexityRule`, etc.) were never executing. Added `mode:all fact-rules` group to jsts, python, go, rust, ruby, cmake, and shell write plans.
