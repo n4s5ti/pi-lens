@@ -222,8 +222,15 @@ function persistGraph(cwd: string, signature: string, graph: ReviewGraph): void 
 	};
 	const json = JSON.stringify(data);
 	fs.mkdir(cacheDir, { recursive: true }, (mkdirErr) => {
-		if (mkdirErr) return;
-		fs.writeFile(cachePath, json, "utf-8", () => {});
+		if (mkdirErr) {
+			console.error("[review-graph] cache dir creation failed:", mkdirErr.message);
+			return;
+		}
+		fs.writeFile(cachePath, json, "utf-8", (writeErr) => {
+			if (writeErr) {
+				console.error("[review-graph] cache write failed:", writeErr.message);
+			}
+		});
 	});
 }
 
