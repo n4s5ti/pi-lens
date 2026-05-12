@@ -16,6 +16,7 @@ All notable changes to pi-lens will be documented in this file.
 
 ### Changed
 
+- **Runner process execution is async/non-blocking across hook paths** — jscpd scans, Madge dependency checks, formatter execution, and dispatch runners that previously used sync `safeSpawn()` now use `safeSpawnAsync()` in write/session/turn hooks. Added in-flight guards for jscpd and Madge project/file scans, async availability checks in runner helpers, and Knip availability dedupe + project-root bail before install/probe.
 - **`isCommandAvailable` replaced `which`/`where` spawn with PATH walk + `statSync` size validation** — instead of spawning `which`/`where` (~50 ms + timeout risk), the installer now walks `$PATH` entries synchronously and checks `statSync(path).isFile() && stat.size > 0` for each candidate. This catches broken symlinks (stat throws `ENOENT` or returns size 0) at ~μs per candidate with zero process spawns. On Windows, `.exe`, `.cmd`, and `.bat` extensions are probed.
 
 ### Fixed

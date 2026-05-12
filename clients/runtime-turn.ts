@@ -87,7 +87,10 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 
 	// Evict turn state written by a previous session — it carries stale file
 	// ranges that no longer reflect the current editing context.
-	if (turnState.sessionId && turnState.sessionId !== runtime.telemetrySessionId) {
+	if (
+		turnState.sessionId &&
+		turnState.sessionId !== runtime.telemetrySessionId
+	) {
 		dbg(
 			`turn_end: evicting stale turn state (session ${turnState.sessionId} ≠ current ${runtime.telemetrySessionId})`,
 		);
@@ -134,7 +137,9 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 	const unresolvedBlockers = runtime.consumeInlineBlockers();
 	for (const { filePath: bPath, summary } of unresolvedBlockers) {
 		const displayPath = toRunnerDisplayPath(cwd, bPath);
-		blockerParts.push(`Unresolved from this turn — ${displayPath}:\n${summary}`);
+		blockerParts.push(
+			`Unresolved from this turn — ${displayPath}:\n${summary}`,
+		);
 	}
 
 	// Merge accumulated cascade results from all pipeline runs this turn.
@@ -285,7 +290,7 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 			);
 			for (const file of madgeFiles) {
 				const absPath = path.resolve(cwd, file);
-				const depResult = depChecker.checkFile(absPath);
+				const depResult = await depChecker.checkFile(absPath, cwd);
 				if (depResult.hasCircular && depResult.circular.length > 0) {
 					const circularDeps = depResult.circular
 						.flatMap((d) => d.path)
@@ -368,13 +373,17 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 						}
 					}
 					if (stale) {
-						dbg(`turn_end: discarding test results — turn advanced while tests ran`);
+						dbg(
+							`turn_end: discarding test results — turn advanced while tests ran`,
+						);
 						return;
 					}
 					if (failures.length > 0) {
 						const content = failures.join("\n\n");
 						cacheManager.writeCache("test-runner-findings", { content }, cwd);
-						dbg(`turn_end: ${failures.length} test failure(s) cached for next context injection`);
+						dbg(
+							`turn_end: ${failures.length} test failure(s) cached for next context injection`,
+						);
 					} else if (results.length > 0) {
 						dbg(`turn_end: all tests passed`);
 					}
@@ -413,22 +422,28 @@ export async function handleTurnEnd(deps: TurnEndDeps): Promise<void> {
 			.slice()
 			.sort((a, b) => a.localeCompare(b))
 			.join("|")}::${content}`;
-		const last = cacheManager.readCache<{ signature: string; sessionId: string }>(
-			"turn-end-findings-last",
-			cwd,
-		);
+		const last = cacheManager.readCache<{
+			signature: string;
+			sessionId: string;
+		}>("turn-end-findings-last", cwd);
 		if (
 			last?.data?.signature === signature &&
 			last?.data?.sessionId === runtime.telemetrySessionId
 		) {
-			dbg("turn_end: duplicate findings detected (same session), suppressing re-prompt");
+			dbg(
+				"turn_end: duplicate findings detected (same session), suppressing re-prompt",
+			);
 			cacheManager.clearTurnState(cwd);
 			runtime.fixedThisTurn.clear();
 			resetFormatService();
 			return;
 		}
 		cacheManager.writeCache("turn-end-findings", { content }, cwd);
-		cacheManager.writeCache("turn-end-findings-last", { signature, sessionId: runtime.telemetrySessionId }, cwd);
+		cacheManager.writeCache(
+			"turn-end-findings-last",
+			{ signature, sessionId: runtime.telemetrySessionId },
+			cwd,
+		);
 	}
 	if (blockerParts.length === 0) {
 		cacheManager.clearTurnState(cwd);

@@ -48,6 +48,7 @@ const ANALYSIS_TIMEOUT_MS = 30_000;
 
 export class KnipClient {
 	private knipAvailable: boolean | null = null;
+	private ensureInFlight: Promise<boolean> | null = null;
 	private log: (msg: string) => void;
 
 	/**
@@ -108,7 +109,17 @@ export class KnipClient {
 	async ensureAvailable(): Promise<boolean> {
 		// Fast path: already checked
 		if (this.knipAvailable !== null) return this.knipAvailable;
+		if (this.ensureInFlight) return this.ensureInFlight;
 
+		this.ensureInFlight = this.doEnsureAvailable();
+		try {
+			return await this.ensureInFlight;
+		} finally {
+			this.ensureInFlight = null;
+		}
+	}
+
+	private async doEnsureAvailable(): Promise<boolean> {
 		// Check if available in PATH (fast)
 		const pathResult = await safeSpawnAsync("knip", ["--version"], {
 			timeout: 5000,
@@ -146,13 +157,6 @@ export class KnipClient {
 	 * root share a single knip process via `inFlight`.
 	 */
 	async analyze(cwd?: string, _ignore?: string[]): Promise<KnipResult> {
-		if (!(await this.ensureAvailable())) {
-			return {
-				...EMPTY_RESULT,
-				summary: "Knip not available. Install with: npm install -D knip",
-			};
-		}
-
 		const targetDir = this.resolveProjectRoot(cwd || process.cwd());
 		if (!targetDir) {
 			// No package.json / knip config anywhere up the tree. Running knip
@@ -165,6 +169,13 @@ export class KnipClient {
 				...EMPTY_RESULT,
 				success: true,
 				summary: "No project root found; knip skipped",
+			};
+		}
+
+		if (!(await this.ensureAvailable())) {
+			return {
+				...EMPTY_RESULT,
+				summary: "Knip not available. Install with: npm install -D knip",
 			};
 		}
 
