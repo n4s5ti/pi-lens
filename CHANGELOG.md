@@ -21,6 +21,7 @@ All notable changes to pi-lens will be documented in this file.
 
 ### Fixed
 
+- **SonarCloud security hotspots resolved** — replaced the .NET build diagnostic regex with a linear manual parser to avoid ReDoS risk (S5852), and switched jscpd temporary directory creation from a `Math.random()` suffix to `fs.mkdtempSync()` to avoid weak PRNG use (S2245).
 - **ast-grep tool language list aligned with ast-grep CLI** — dropped phantom `dart` and `sql` (not supported by ast-grep binary), added missing `bash`, `nix`, `solidity`. The `LANGUAGES` constant in `tools/shared.ts` now matches ast-grep v0.41's official 25-language list.
 - **Graph-cache test: disk cache leaked across test runs** — `buildOrUpdateGraph` persists to `cwd/.pi-lens/cache/review-graph.json`. All tests used hardcoded `"/cwd"`, causing the first test run's disk cache to contaminate subsequent runs. Switched to `fs.mkdtempSync` temp directories with `afterEach` cleanup.
 - **Disabled tree-sitter rules leaked into production** — `parseQueryFile` uses the YAML's `language:` field over the directory name, so rules in `typescript-disabled/` with `language: typescript` were loaded as active TypeScript rules and appeared in the diagnostics widget. Added `!d.name.endsWith("-disabled")` filter to `loadQueries` directory enumeration.

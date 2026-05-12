@@ -9,6 +9,7 @@
  */
 
 import * as fs from "node:fs";
+import { mkdtempSync } from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getExcludedDirGlobs, isExcludedDirName } from "./file-utils.js";
@@ -209,11 +210,7 @@ export class JscpdClient {
 		minTokens: number,
 		isTsProject: boolean,
 	): Promise<JscpdResult> {
-		const outDir = path.join(
-			os.tmpdir(),
-			`pi-lens-jscpd-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-		);
-		fs.mkdirSync(outDir, { recursive: true });
+		const outDir = mkdtempSync(`${os.tmpdir()}${path.sep}pi-lens-jscpd-`);
 
 		// Build ignore pattern from shared exclusions + scanner-specific patterns.
 		const baseIgnores = [
