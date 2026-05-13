@@ -382,6 +382,20 @@ function probeAstGrepCommand(cmd: string, argsPrefix: string[] = []): boolean {
 	);
 }
 
+async function probeAstGrepCommandAsync(
+	cmd: string,
+	argsPrefix: string[] = [],
+): Promise<boolean> {
+	const check = await safeSpawnAsync(cmd, [...argsPrefix, "--version"], {
+		timeout: 5000,
+	});
+	return (
+		!check.error &&
+		check.status === 0 &&
+		isAstGrepVersionOutput(`${check.stdout}\n${check.stderr}`)
+	);
+}
+
 /**
  * Check if ast-grep CLI is available.
  * Prefers the canonical ast-grep binary, and only accepts sg if its version
@@ -446,6 +460,71 @@ export function isSgAvailable(): boolean {
 
 	sgAvailable = false;
 	return false;
+}
+
+let sgAvailableInFlight: Promise<boolean> | null = null;
+
+export async function isSgAvailableAsync(): Promise<boolean> {
+	if (sgAvailable !== null) return sgAvailable;
+	if (sgAvailableInFlight) return sgAvailableInFlight;
+
+	sgAvailableInFlight = (async () => {
+		const isWin = process.platform === "win32";
+		const hasBash = !!(
+			process.env.MSYSTEM ||
+			process.env.GIT_SHELL ||
+			process.env.BASH
+		);
+		const extensions = isWin
+			? hasBash
+				? ["", ".exe", ".cmd"]
+				: [".cmd", ".exe", ""]
+			: [""];
+		const binaryCandidates = ["ast-grep", "sg"].flatMap((base) =>
+			extensions.map((ext) => `${base}${ext}`),
+		);
+
+		const binRoots = [
+			...findNodeBinRoots(_thisDir),
+			...findNodeBinRoots(process.cwd()),
+			_managedToolsDir,
+		];
+		for (const root of binRoots) {
+			for (const candidate of binaryCandidates) {
+				const localBin = path.join(root, "node_modules", ".bin", candidate);
+				if (!fs.existsSync(localBin)) continue;
+				if (await probeAstGrepCommandAsync(localBin)) {
+					sgCmd = localBin;
+					sgCmdArgs = [];
+					sgAvailable = true;
+					return true;
+				}
+			}
+		}
+
+		for (const cmd of ["ast-grep", "sg"]) {
+			if (await probeAstGrepCommandAsync(cmd)) {
+				sgCmd = cmd;
+				sgCmdArgs = [];
+				sgAvailable = true;
+				return true;
+			}
+		}
+
+		if (await probeAstGrepCommandAsync("npx", ["--no", "--", "ast-grep"])) {
+			sgCmd = "npx";
+			sgCmdArgs = ["--no", "--", "ast-grep"];
+			sgAvailable = true;
+			return true;
+		}
+
+		sgAvailable = false;
+		return false;
+	})().finally(() => {
+		sgAvailableInFlight = null;
+	});
+
+	return sgAvailableInFlight;
 }
 
 export function getSgCommand(): { cmd: string; args: string[] } {
