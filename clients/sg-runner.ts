@@ -341,6 +341,47 @@ export class SgRunner {
 		}
 	}
 
+	async tempScanAsync(
+		dir: string,
+		ruleId: string,
+		ruleYaml: string,
+		timeout = 30000,
+	): Promise<SgMatch[]> {
+		const tmpDir = os.tmpdir();
+		const ts = Date.now();
+		const sessionDir = path.join(tmpDir, `pi-lens-temp-${ruleId}-${ts}`);
+		const rulesSubdir = path.join(sessionDir, "rules");
+		const ruleFile = path.join(rulesSubdir, `${ruleId}.yml`);
+		const configFile = path.join(sessionDir, ".sgconfig.yml");
+
+		try {
+			fs.mkdirSync(rulesSubdir, { recursive: true });
+			fs.writeFileSync(configFile, `ruleDirs:\n  - ./rules\n`);
+			fs.writeFileSync(ruleFile, ruleYaml);
+
+			const { cmd: sgCmd, args: sgPre } = getSgCommand();
+			const result = await safeSpawnAsync(
+				sgCmd,
+				[...sgPre, "scan", "--config", configFile, "--json", dir],
+				{ timeout },
+			);
+
+			const output = result.stdout || result.stderr || "";
+			if (!output.trim()) return [];
+
+			const items = JSON.parse(output);
+			return Array.isArray(items) ? items : [items];
+		} catch {
+			return [];
+		} finally {
+			try {
+				fs.rmSync(sessionDir, { recursive: true, force: true });
+			} catch (err) {
+				this.log(`Cleanup failed: ${(err as Error).message}`);
+			}
+		}
+	}
+
 	/**
 	 * Run a rule file scan (temporary config approach) - alias for tempScan
 	 */

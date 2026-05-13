@@ -6,6 +6,8 @@ All notable changes to pi-lens will be documented in this file.
 
 ### Fixed
 
+- **`SgRunner.tempScan` is now async (`tempScanAsync`)** — the live production path `scanExports` → `runTempScan` → `tempScan` was blocking the Node event loop during background session startup scans. Added `tempScanAsync` using `safeSpawnAsync` and wired it through `AstGrepClient.runTempScanAsync` and `scanExports`/`findSimilarFunctions`. Sync `tempScan` retained for test compatibility per AGENTS.md legacy-cleanup contract.
+
 - **`rust-clippy` and `go-vet` runners now use platform-aware binary resolution** — both runners were calling `"cargo"` / `"go"` as bare command names, relying on PATH. On Windows, `cargo` lives in `~/.cargo/bin/cargo.exe` and `go` in `C:\Program Files\Go\bin\go.exe` — locations not always on the shell PATH when pi-lens launches from an IDE. The runners now use `RustClient.findCargoPath()` and `GoClient.findGoPath()` respectively, which probe known install locations before falling back to PATH. Both path-finder methods are made public. `GoClient` and `RustClient` module-level singletons are shared across runner invocations so the path is resolved and cached once per session.
 
 ## [3.8.44] - 2026-05-13
